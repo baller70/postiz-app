@@ -3,7 +3,7 @@ import { Integrations } from '@gitroom/frontend/components/launches/calendar.con
 import { useMoveToIntegrationListener } from '@gitroom/frontend/components/launches/helpers/use.move.to.integration';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import clsx from 'clsx';
-import SafeImage from '@gitroom/react/helpers/safe.image';
+import Image from 'next/image';
 import { useCopilotAction, useCopilotReadable } from '@copilotkit/react-core';
 import { useStateCallback } from '@gitroom/react/helpers/use.state.callback';
 import { timer } from '@gitroom/helpers/utils/timer';
@@ -244,7 +244,7 @@ export const PickPlatforms: FC<{
                             : ''
                         )}
                       >
-                        <SafeImage
+                        <Image
                           src={integration.picture || '/no-picture.jpg'}
                           className="rounded-full"
                           alt={integration.identifier}
@@ -258,7 +258,7 @@ export const PickPlatforms: FC<{
                             width={20}
                           />
                         ) : (
-                          <SafeImage
+                          <Image
                             src={`/icons/platforms/${integration.identifier}.png`}
                             className="rounded-full absolute z-10 -bottom-[5px] -end-[5px] border border-fifth"
                             alt={integration.identifier}
@@ -290,7 +290,7 @@ export const PickPlatforms: FC<{
                               width={24}
                               height={24}
                             />
-                            <SafeImage
+                            <Image
                               src={`/icons/platforms/${integration.identifier}.png`}
                               className="rounded-full absolute z-10 -bottom-[5px] -end-[5px] border border-fifth"
                               alt={integration.identifier}

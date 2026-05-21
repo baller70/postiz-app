@@ -225,10 +225,10 @@ const AddOrRemoveSignature: FC<{
               setValueAs: (value) => value === 'true',
             })}
           >
-            <option value="false">
+            <option value="false" selected={!autoAdd}>
               {t('no', 'No')}
             </option>
-            <option value="true">
+            <option value="true" selected={autoAdd}>
               {t('yes', 'Yes')}
             </option>
           </Select>

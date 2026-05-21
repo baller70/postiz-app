@@ -1,5 +1,6 @@
 import {
   AgentToolInterface,
+  ToolReturn,
 } from '@gitroom/nestjs-libraries/chat/agent.tool.interface';
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
@@ -17,16 +18,6 @@ export class GenerateVideoOptionsTool implements AgentToolInterface {
     return createTool({
       id: 'generateVideoOptions',
       description: `All the options to generate videos, some tools might require another call to generateVideoFunction`,
-      inputSchema: z.object({}),
-      mcp: {
-        annotations: {
-          title: 'List Video Generation Options',
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        },
-      },
       outputSchema: z.object({
         video: z.array(
           z.object({
@@ -42,8 +33,9 @@ export class GenerateVideoOptionsTool implements AgentToolInterface {
           })
         ),
       }),
-      execute: async (inputData, context) => {
-        checkAuth(inputData, context);
+      execute: async (args, options) => {
+        const { context, runtimeContext } = args;
+        checkAuth(args, options);
         const videos = this._videoManagerService.getAllVideos();
         console.log(
           JSON.stringify(

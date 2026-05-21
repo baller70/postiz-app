@@ -1,0 +1,13 @@
+services:
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz
+    restart: always
+    env_file:
+      - .env.docker
+    volumes:
+      - /opt/apps/postiz/uploads:/uploads
+    ports:
+      - '8085:5000'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'

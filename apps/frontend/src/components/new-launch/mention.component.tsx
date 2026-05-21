@@ -117,10 +117,6 @@ const MentionList: FC = (props: any) => {
 };
 
 const updatePosition = (editor: any, element: any) => {
-  if (!editor?.view || !element) {
-    return;
-  }
-
   const virtualElement = {
     getBoundingClientRect: () =>
       posToDOMRect(

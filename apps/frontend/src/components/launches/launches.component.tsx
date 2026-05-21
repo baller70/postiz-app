@@ -2,8 +2,8 @@
 
 import { AddProviderButton } from '@gitroom/frontend/components/launches/add.provider.component';
 import { FC, useCallback, useEffect, useMemo, useState } from 'react';
-import SafeImage from '@gitroom/react/helpers/safe.image';
-import { capitalize, groupBy, orderBy } from 'lodash';
+import Image from 'next/image';
+import { groupBy, orderBy } from 'lodash';
 import { CalendarWeekProvider } from '@gitroom/frontend/components/launches/calendar.context';
 import { Filters } from '@gitroom/frontend/components/launches/filters';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
@@ -248,10 +248,7 @@ export const MenuComponent: FC<
       {...(integration.refreshNeeded && {
         onClick: refreshChannel(integration),
         'data-tooltip-id': 'tooltip',
-        'data-tooltip-content': t(
-          'channel_disconnected_click_to_reconnect',
-          'Channel disconnected, click to reconnect.'
-        ),
+        'data-tooltip-content': t('channel_disconnected_click_to_reconnect', 'Channel disconnected, click to reconnect.'),
       })}
       {...(collapsed
         ? {
@@ -259,6 +256,7 @@ export const MenuComponent: FC<
             'data-tooltip-content': integration.name,
           }
         : {})}
+      key={integration.id}
       className={clsx(
         'flex gap-[12px] items-center bg-newBgColorInner hover:bg-boxHover group/profile transition-all rounded-e-[8px]',
         integration.refreshNeeded && 'cursor-pointer'
@@ -303,7 +301,7 @@ export const MenuComponent: FC<
             width={20}
           />
         ) : (
-          <SafeImage
+          <Image
             src={`/icons/platforms/${integration.identifier}.png`}
             className="rounded-[8px] absolute z-10 bottom-[5px] -end-[5px] border border-fifth"
             alt={integration.identifier}
@@ -319,10 +317,8 @@ export const MenuComponent: FC<
         totalNonDisabledChannels === user?.totalChannels
           ? {
               'data-tooltip-id': 'tooltip',
-              'data-tooltip-content': t(
-                'channel_disabled_upgrade_plan',
-                'This channel is disabled, please upgrade your plan to enable it.'
-              ),
+              'data-tooltip-content':
+                t('channel_disabled_upgrade_plan', 'This channel is disabled, please upgrade your plan to enable it.'),
             }
           : {})}
         role="Handle"
@@ -580,15 +576,10 @@ export const LaunchesComponent = () => {
                 />
               ))}
             </div>
-            <div className="mt-[5px] text-center flex flex-col">
-              {billingEnabled && user?.isLifetime && (
-                <div>{capitalize(user?.tier?.current || '')} tier</div>
-              )}
-              <div>
-                {process.env.NEXT_PUBLIC_VERSION
-                  ? process.env.NEXT_PUBLIC_VERSION
-                  : ''}
-              </div>
+            <div className="mt-[5px] text-center">
+              {process.env.NEXT_PUBLIC_VERSION
+                ? process.env.NEXT_PUBLIC_VERSION
+                : ''}
             </div>
           </div>
         </div>

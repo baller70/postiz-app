@@ -31,15 +31,6 @@ export class IntegrationSchedulePostTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'schedulePostTool',
-      mcp: {
-        annotations: {
-          title: 'Schedule Social Media Post',
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-          openWorldHint: true,
-        },
-      },
       description: `
 This tool allows you to schedule a post to a social media platform, based on integrationSchema tool.
 So for example:
@@ -123,15 +114,17 @@ If the tools return errors, you would need to rerun it with the right parameters
           )
           .or(z.object({ errors: z.string() })),
       }),
-      execute: async (inputData, context) => {
-        checkAuth(inputData, context);
+      execute: async (args, options) => {
+        const { context, runtimeContext } = args;
+        checkAuth(args, options);
         const organizationId = JSON.parse(
-          (context?.requestContext as any)?.get('organization') as string
+          // @ts-ignore
+          runtimeContext.get('organization') as string
         ).id;
         const finalOutput = [];
 
         const integrations = {} as Record<string, Integration>;
-        for (const platform of inputData.socialPost) {
+        for (const platform of context.socialPost) {
           integrations[platform.integrationId] =
             await this._integrationService.getIntegrationById(
               organizationId,
@@ -149,7 +142,7 @@ If the tools return errors, you would need to rerun it with the right parameters
             const obj = Object.assign(
               newDTO,
               platform.settings.reduce(
-                (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
+                (acc, s) => ({
                   ...acc,
                   [s.key]: s.value,
                 }),
@@ -187,7 +180,7 @@ If the tools return errors, you would need to rerun it with the right parameters
           }
         }
 
-        for (const post of inputData.socialPost) {
+        for (const post of context.socialPost) {
           const integration = integrations[post.integrationId];
 
           if (!integration) {
@@ -204,7 +197,7 @@ If the tools return errors, you would need to rerun it with the right parameters
                 integration,
                 group: makeId(10),
                 settings: post.settings.reduce(
-                  (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
+                  (acc, s) => ({
                     ...acc,
                     [s.key]: s.value,
                   }),
@@ -212,11 +205,11 @@ If the tools return errors, you would need to rerun it with the right parameters
                     __type: integration.providerIdentifier,
                   } as AllProvidersSettings
                 ),
-                value: post.postsAndComments.map((p: any) => ({
+                value: post.postsAndComments.map((p) => ({
                   content: p.content,
                   id: makeId(10),
                   delay: 0,
-                  image: p.attachments.map((p: any) => ({
+                  image: p.attachments.map((p) => ({
                     id: makeId(10),
                     path: p,
                   })),

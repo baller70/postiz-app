@@ -129,7 +129,6 @@ export class MediaController {
 
   @Post('/upload-simple')
   @UseInterceptors(FileInterceptor('file'))
-  @UsePipes(new CustomFileValidationPipe())
   async uploadSimple(
     @GetOrgFromRequest() org: Organization,
     @UploadedFile('file') file: Express.Multer.File,
@@ -181,10 +180,9 @@ export class MediaController {
   @Get('/')
   getMedia(
     @GetOrgFromRequest() org: Organization,
-    @Query('page') page: number,
-    @Query('search') search?: string
+    @Query('page') page: number
   ) {
-    return this._mediaService.getMedia(org.id, page, search);
+    return this._mediaService.getMedia(org.id, page);
   }
 
   @Get('/video-options')

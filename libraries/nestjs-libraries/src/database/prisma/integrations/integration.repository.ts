@@ -71,7 +71,7 @@ export class IntegrationRepository {
   async checkPreviousConnections(org: string, id: string) {
     const findIt = await this._integration.model.integration.findMany({
       where: {
-        rootInternalId: id,
+        rootInternalId: id.split('_').pop(),
       },
       select: {
         organizationId: true,
@@ -161,22 +161,9 @@ export class IntegrationRepository {
     });
 
     if (existing) {
-      await this._posts.model.post.updateMany({
-        where: {
-          integrationId: id,
-        },
-        data: {
-          deletedAt: new Date(),
-        },
-      });
-
-      await this._integration.model.integration.update({
+      await this._integration.model.integration.delete({
         where: {
           id,
-        },
-        data: {
-          internalId: `deleted_${params.internalId}_${makeId(10)}`,
-          deletedAt: new Date(),
         },
       });
     }
@@ -263,7 +250,7 @@ export class IntegrationRepository {
         ...postTimes,
         organizationId: org,
         refreshNeeded: false,
-        rootInternalId: internalId,
+        rootInternalId: internalId.split('_').pop(),
         ...(customInstanceDetails ? { customInstanceDetails } : {}),
         additionalSettings: additionalSettings
           ? JSON.stringify(additionalSettings)
@@ -304,7 +291,7 @@ export class IntegrationRepository {
               internalId: internalId,
             },
           })
-        )?.rootInternalId || internalId;
+        )?.rootInternalId || internalId.split('_').pop()!;
 
       await this._integration.model.integration.updateMany({
         where: {

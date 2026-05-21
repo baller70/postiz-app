@@ -1,60 +1,76 @@
-# See http://help.github.com/ignore-files/ for more about ignoring files.
 
-# compiled output
-dist
-tmp
-/out-tsc
-.env
-# dependencies
-node_modules
-
-# IDEs and editors
-/.idea
-.project
-.classpath
+*.~*~
+# Backups
+*.bak
+*.bak2
+*.bak.preworkflows
+build/
+# Build cache
 .c9/
-*.launch
-.settings/
-*.sublime-workspace
-.vscode/*
-
-# IDE - VSCode
-.vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# misc
-/.sass-cache
+.classpath
+# compiled output
 /connect.lock
+container-env-backup.txt
 /coverage
-/libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-/typings
-
-# System Files
+# dependencies
+dist
+dist/
 .DS_Store
-Thumbs.db
-
+.env
+*-env-backup*
+*.env.bak
+.env.clean
+.env.docker
+.env.*.local
+.env.local
+.env.production
+i18n.cache
+/.idea
+# IDEs and editors
+# IDE - VSCode
+# ignore Secrets folder
+jane-state/brain.db
+jane-state/.brain.db-litestream/
+jane-state/brain.db-shm
+jane-state/brain.db-wal
+jane-state/obsidian-vault/
+*.launch
+/libpeerconnection.log
+libraries/plugins/src/plugins.ts
+*.log
+# Logs
+# misc
+.next
+.next/
+# Next.js
+node_modules
+node_modules/
+npm-debug.log
 .nx/cache
 .nx/workspace-data
-
-# Next.js
-.next
-
-# Vim files
-**/*.swp
-**/*.swo
-
-# Temporary files
 *.orig
-*.~*~
-*.tsbuildinfo
-
-# ignore Secrets folder
+/out-tsc
+.project
+# Runtime SQLite + Litestream WAL (regenerated)
+/.sass-cache
 .secrets/
-libraries/plugins/src/plugins.ts
-i18n.cache
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+.settings/
+*.sublime-workspace
+**/*.swo
+**/*.swp
+# System Files
+# Temporary files
+testem.log
+Thumbs.db
+tmp
+*.tsbuildinfo
+.turbo/
+/typings
+# Vim files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+yarn-error.log

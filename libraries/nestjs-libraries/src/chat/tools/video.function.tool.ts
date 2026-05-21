@@ -18,26 +18,18 @@ export class VideoFunctionTool implements AgentToolInterface {
     return createTool({
       id: 'videoFunctionTool',
       description: `Sometimes when we want to generate videos we might need to get some additional information like voice_id, etc`,
-      mcp: {
-        annotations: {
-          title: 'Video Function Helper',
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        },
-      },
       inputSchema: z.object({
         identifier: z.string(),
         functionName: z.string(),
       }),
-      execute: async (inputData, context) => {
-        checkAuth(inputData, context);
+      execute: async (args, options) => {
+        const { context, runtimeContext } = args;
+        checkAuth(args, options);
         const videos = this._videoManagerService.getAllVideos();
         const findVideo = videos.find(
           (p) =>
-            p.identifier === inputData.identifier &&
-            p.tools.some((p) => p.functionName === inputData.functionName)
+            p.identifier === context.identifier &&
+            p.tools.some((p) => p.functionName === context.functionName)
         );
 
         if (!findVideo) {
@@ -47,7 +39,7 @@ export class VideoFunctionTool implements AgentToolInterface {
         const func = await this._moduleRef
           // @ts-ignore
           .get(findVideo.target, { strict: false })
-          [inputData.functionName]();
+          [context.functionName]();
         return func;
       },
     });

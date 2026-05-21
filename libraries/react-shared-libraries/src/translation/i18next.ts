@@ -14,9 +14,11 @@ i18next
     })
   )
   .init({
+    // debug: true,
     supportedLngs: languages,
     fallbackLng,
     lng: undefined,
+    // let detect the language on client side
     fallbackNS: defaultNS,
     defaultNS,
     detection: {

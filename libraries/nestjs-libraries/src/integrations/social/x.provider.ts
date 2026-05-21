@@ -366,8 +366,6 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         | 'mentionedUsers'
         | 'subscribers'
         | 'verified';
-      made_with_ai?: boolean;
-      paid_partnership?: boolean;
     }>[]
   ): Promise<PostResponse[]> {
     const client = await this.getClient(accessToken);
@@ -406,8 +404,6 @@ export class XProvider extends SocialAbstract implements SocialProvider {
             : {}),
           text: firstPost.message,
           ...(media_ids.length ? { media: { media_ids } } : {}),
-          made_with_ai: !!firstPost?.settings?.made_with_ai,
-          paid_partnership: !!firstPost?.settings?.paid_partnership,
         })
     );
 
@@ -429,8 +425,6 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     postDetails: PostDetails<{
       active_thread_finisher: boolean;
       thread_finisher: string;
-      made_with_ai?: boolean;
-      paid_partnership?: boolean;
     }>[],
     integration: Integration
   ): Promise<PostResponse[]> {
@@ -460,8 +454,6 @@ export class XProvider extends SocialAbstract implements SocialProvider {
           text: commentPost.message,
           ...(media_ids.length ? { media: { media_ids } } : {}),
           reply: { in_reply_to_tweet_id: replyToId },
-          made_with_ai: !!commentPost?.settings?.made_with_ai,
-          paid_partnership: !!commentPost?.settings?.paid_partnership,
         })
     );
 

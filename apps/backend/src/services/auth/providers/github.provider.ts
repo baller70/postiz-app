@@ -1,10 +1,6 @@
-import {
-  AuthProvider,
-  AuthProviderAbstract,
-} from '@gitroom/backend/services/auth/providers.interface';
+import { ProvidersInterface } from '@gitroom/backend/services/auth/providers.interface';
 
-@AuthProvider({ provider: 'GITHUB' })
-export class GithubProvider extends AuthProviderAbstract {
+export class GithubProvider implements ProvidersInterface {
   generateLink(): string {
     return `https://github.com/login/oauth/authorize?client_id=${
       process.env.GITHUB_CLIENT_ID
@@ -13,7 +9,7 @@ export class GithubProvider extends AuthProviderAbstract {
     )}`;
   }
 
-  async getToken(code: string, _redirectUri?: string): Promise<string> {
+  async getToken(code: string): Promise<string> {
     const { access_token } = await (
       await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',

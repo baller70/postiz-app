@@ -27,9 +27,6 @@ async function start() {
       allowedHeaders: [
         'Content-Type',
         'Authorization',
-        'auth',
-        'showorg',
-        'impersonate',
         'x-copilotkit-runtime-client-gql-version',
       ],
       exposedHeaders: [
@@ -70,7 +67,6 @@ async function start() {
 
   try {
     await app.listen(port);
-    console.log('Backend started successfully on port ' + port);
 
     checkConfiguration(); // Do this last, so that users will see obvious issues at the end of the startup log without having to scroll up.
 

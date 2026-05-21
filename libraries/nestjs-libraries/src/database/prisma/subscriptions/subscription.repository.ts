@@ -109,14 +109,6 @@ export class SubscriptionRepository {
     });
   }
 
-  async getSubscriptionByOrgId(orgId: string) {
-    return this._subscription.model.subscription.findFirst({
-      where: {
-        organizationId: orgId,
-      },
-    });
-  }
-
   async getSubscriptionByCustomerId(customerId: string) {
     return this._subscription.model.subscription.findFirst({
       where: {
@@ -140,7 +132,7 @@ export class SubscriptionRepository {
     identifier: string,
     customerId: string,
     totalChannels: number,
-    billing: 'STANDARD' | 'TEAM' | 'PRO' | 'ULTIMATE',
+    billing: 'STANDARD' | 'PRO',
     period: 'MONTHLY' | 'YEARLY',
     cancelAt: number | null,
     code?: string,
@@ -203,18 +195,6 @@ export class SubscriptionRepository {
         },
       });
     }
-  }
-
-  getSubscriptionByIdentifier(identifier: string) {
-    return this._subscription.model.subscription.findFirst({
-      where: {
-        identifier,
-        deletedAt: null,
-      },
-      include: {
-        organization: true,
-      },
-    });
   }
 
   getSubscription(organizationId: string) {

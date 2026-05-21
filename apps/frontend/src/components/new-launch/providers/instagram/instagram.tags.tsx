@@ -69,9 +69,24 @@ export const InstagramCollaboratorsTags: FC<{
     ].filter((f) => f.label);
   }, [suggestions, tagValue]);
   return (
-    <div>
-      <div>
-        <div className={clsx(`text-[14px] mb-[6px]`)}>{label}</div>
+    <div
+      {...(integration?.identifier === 'instagram-standalone'
+        ? {
+            'data-tooltip-id': 'tooltip',
+            'data-tooltip-content':
+              'Instagram Standalone does not support collaborators',
+          }
+        : {})}
+    >
+      <div
+        className={clsx(
+          integration?.identifier === 'instagram-standalone' &&
+            'opacity-50 pointer-events-none'
+        )}
+      >
+        <div className={clsx(`text-[14px] mb-[6px]`)}>
+          {label}
+        </div>
         <ReactTags
           placeholderText={t('add_a_tag', 'Add a tag')}
           suggestions={suggestionsArray}

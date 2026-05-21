@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsOptional, Matches } from 'class-validator';
+import { IsIn, IsOptional, Matches } from 'class-validator';
 
 export class XDto {
   @IsOptional()
@@ -15,12 +15,4 @@ export class XDto {
     | 'mentionedUsers'
     | 'subscribers'
     | 'verified';
-
-  @IsOptional()
-  @IsBoolean()
-  made_with_ai?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  paid_partnership?: boolean;
 }

@@ -6,11 +6,12 @@ export const metadata: Metadata = {
   title: `${isGeneralServerSide() ? 'Postiz' : 'Gitroom'} Settings`,
   description: '',
 };
-export default async function Index(props: {
-  searchParams: Promise<{
+export default async function Index({
+  searchParams,
+}: {
+  searchParams: {
     code: string;
-  }>;
+  };
 }) {
-  const searchParams = await props.searchParams;
   return <SettingsPopup />;
 }

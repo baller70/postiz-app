@@ -43,11 +43,10 @@ export class LoadToolsService {
   async agent() {
     const tools = await this.loadTools();
     return new Agent({
-      id: 'postiz',
       name: 'postiz',
       description: 'Agent that helps manage and schedule social media posts for users',
-      instructions: ({ requestContext }) => {
-        const ui: string = requestContext.get('ui' as never);
+      instructions: ({ runtimeContext }) => {
+        const ui: string = runtimeContext.get('ui' as never);
         return `
       Global information:
         - Date (UTC): ${dayjs().format('YYYY-MM-DD HH:mm:ss')}
@@ -91,7 +90,9 @@ export class LoadToolsService {
       memory: new Memory({
         storage: pStore,
         options: {
-          generateTitle: true,
+          threads: {
+            generateTitle: true,
+          },
           workingMemory: {
             enabled: true,
             schema: AgentState,

@@ -8,7 +8,7 @@ export const initializeSentryClient = (environment: string, dsn: string) =>
       Sentry.browserTracingIntegration(),
       Sentry.browserProfilingIntegration(),
       Sentry.replayIntegration({
-        maskAllText: false,
+        maskAllText: true,
         maskAllInputs: true,
       }),
       Sentry.feedbackIntegration({

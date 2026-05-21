@@ -1,11 +1,13 @@
 import {
   AgentToolInterface,
+  ToolReturn,
 } from '@gitroom/nestjs-libraries/chat/agent.tool.interface';
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import { getAuth } from '@gitroom/nestjs-libraries/chat/async.storage';
 
 @Injectable()
 export class IntegrationListTool implements AgentToolInterface {
@@ -16,16 +18,6 @@ export class IntegrationListTool implements AgentToolInterface {
     return createTool({
       id: 'integrationList',
       description: `This tool list available integrations to schedule posts to`,
-      inputSchema: z.object({}),
-      mcp: {
-        annotations: {
-          title: 'List Integrations',
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        },
-      },
       outputSchema: z.object({
         output: z.array(
           z.object({
@@ -36,10 +28,14 @@ export class IntegrationListTool implements AgentToolInterface {
           })
         ),
       }),
-      execute: async (inputData, context) => {
-        checkAuth(inputData, context);
+      execute: async (args, options) => {
+        console.log(getAuth());
+        console.log(options);
+        const { context, runtimeContext } = args;
+        checkAuth(args, options);
         const organizationId = JSON.parse(
-          (context?.requestContext as any)?.get('organization') as string
+          // @ts-ignore
+          runtimeContext.get('organization') as string
         ).id;
 
         return {

@@ -562,7 +562,7 @@ export const Editor: FC<{
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const t = useT();
   const toaster = useToaster();
-  const editorRef = useRef<undefined | { editor: any }>(undefined);
+  const editorRef = useRef<undefined | { editor: any }>();
   const [loading, setLoading] = useState(false);
 
   const uppy = useUppyUploader({

@@ -2,7 +2,7 @@
 
 import { FC } from 'react';
 import clsx from 'clsx';
-import SafeImage from '@gitroom/react/helpers/safe.image';
+import Image from 'next/image';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import { useExistingData } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
@@ -87,7 +87,7 @@ export const PicksSocialsComponent: FC<{ toolTip?: boolean }> = ({
                         width={16}
                       />
                     ) : (
-                      <SafeImage
+                      <Image
                         src={`/icons/platforms/${integration.identifier}.png`}
                         className="rounded-[4px] absolute z-10 bottom-0 -end-[5px] min-w-[16px] min-h-[16px]"
                         alt={integration.identifier}

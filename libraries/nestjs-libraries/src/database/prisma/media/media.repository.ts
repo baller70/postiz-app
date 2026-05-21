@@ -72,24 +72,13 @@ export class MediaRepository {
     });
   }
 
-  async getMedia(org: string, page: number, search?: string) {
+  async getMedia(org: string, page: number) {
     const pageNum = (page || 1) - 1;
-    const trimmedSearch = search?.trim();
-    const searchFilter = trimmedSearch
-      ? {
-          originalName: {
-            contains: trimmedSearch,
-            mode: 'insensitive' as const,
-          },
-        }
-      : {};
     const query = {
       where: {
         organization: {
           id: org,
         },
-        deletedAt: null,
-        ...searchFilter,
       },
     };
     const pages = Math.ceil((await this._media.model.media.count(query)) / 18);
@@ -97,7 +86,6 @@ export class MediaRepository {
       where: {
         organizationId: org,
         deletedAt: null,
-        ...searchFilter,
       },
       orderBy: {
         createdAt: 'desc',

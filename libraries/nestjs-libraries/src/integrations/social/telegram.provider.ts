@@ -133,7 +133,9 @@ export class TelegramProvider extends SocialAbstract implements SocialProvider {
       ? { chatId }
       : res.length > 0
       ? {
-          lastChatId: res[res.length - 1].update_id + 1,
+          lastChatId:
+            res?.[res.length - 1]?.message?.chat?.id ||
+            res?.[res.length - 1]?.channel_post?.chat?.id,
         }
       : {};
   }

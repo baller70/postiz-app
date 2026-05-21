@@ -1,5 +1,5 @@
 import { FC, useEffect, useState } from 'react';
-import SafeImage from './safe.image';
+import Image from 'next/image';
 interface ImageSrc {
   src: string;
   fallbackSrc: string;
@@ -16,7 +16,7 @@ const ImageWithFallback: FC<ImageSrc> = (props) => {
     }
   }, [src]);
   return (
-    <SafeImage
+    <Image
       alt=""
       {...rest}
       src={imgSrc}

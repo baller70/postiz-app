@@ -1,4 +1,9 @@
-import { Global, Injectable, Module, OnModuleInit } from '@nestjs/common';
+import {
+  Global,
+  Injectable,
+  Module,
+  OnModuleInit,
+} from '@nestjs/common';
 import { TemporalService } from 'nestjs-temporal-core';
 import { Connection } from '@temporalio/client';
 
@@ -7,9 +12,6 @@ export class TemporalRegister implements OnModuleInit {
   constructor(private _client: TemporalService) {}
 
   async onModuleInit(): Promise<void> {
-    if (process.env.TEMPORAL_TLS === 'true') {
-      return;
-    }
     const connection = this._client?.client?.getRawClient()
       ?.connection as Connection;
 
@@ -20,7 +22,7 @@ export class TemporalRegister implements OnModuleInit {
 
     const neededAttribute = ['organizationId', 'postId'];
     const missingAttributes = neededAttribute.filter(
-      (attr) => !customAttributes[attr]
+      (attr) => !customAttributes[attr],
     );
 
     if (missingAttributes.length > 0) {

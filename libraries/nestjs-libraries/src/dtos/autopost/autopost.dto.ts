@@ -8,7 +8,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { IsSafeWebhookUrl } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.url.validator';
 
 export class Integrations {
   @IsString()
@@ -39,10 +38,6 @@ export class AutopostDto {
 
   @IsUrl()
   @IsDefined()
-  @IsSafeWebhookUrl({
-    message:
-      'Autopost URL must be a public HTTPS URL and cannot point to internal network addresses',
-  })
   url: string;
 
   @IsBoolean()

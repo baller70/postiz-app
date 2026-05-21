@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   description: '',
 };
 export default async function Auth(params: {
-  params: Promise<{
+  params: {
     token: string;
-  }>;
+  };
 }) {
-  return <ForgotReturn token={(await params.params).token} />;
+  return <ForgotReturn token={params.params.token} />;
 }

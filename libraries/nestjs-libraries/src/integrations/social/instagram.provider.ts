@@ -52,10 +52,7 @@ export class InstagramProvider
     };
   }
 
-  public override handleErrors(
-    body: string,
-    status: number
-  ):
+  public override handleErrors(body: string):
     | {
         type: 'refresh-token' | 'bad-body' | 'retry';
         value: string;
@@ -95,7 +92,7 @@ export class InstagramProvider
     if (body.toLowerCase().indexOf('session has been invalidated') > -1) {
       return {
         type: 'refresh-token' as const,
-        value: 'You session has been invalidated, this can usually happen from frequent posting, please re-authenticate, and wait 1-2 days before posting again',
+        value: 'Please re-authenticate your Instagram account',
       };
     }
 
@@ -275,8 +272,7 @@ export class InstagramProvider
     if (body.indexOf('190,') > -1) {
       return {
         type: 'bad-body' as const,
-        value:
-          'The account is missing some permissions to perform this action, please re-add the account and allow all permissions',
+        value: 'The account is missing some permissions to perform this action, please re-add the account and allow all permissions',
       };
     }
 
@@ -306,13 +302,6 @@ export class InstagramProvider
       return {
         type: 'bad-body' as const,
         value: 'Unknown error, please try again later or contact support',
-      };
-    }
-
-    if (body.indexOf('param collaborators is not allowed') > -1) {
-      return {
-        type: 'bad-body' as const,
-        value: 'Collaborators are not allowed for carousel',
       };
     }
 
@@ -416,73 +405,21 @@ export class InstagramProvider
   }
 
   async pages(accessToken: string) {
-    const seenPageIds = new Set<string>();
-    const allFacebookPages: any[] = [];
-
-    const fetchPaginated = async (startUrl: string) => {
-      let nextUrl: string | undefined = startUrl;
-      while (nextUrl) {
-        const response = await (await fetch(nextUrl)).json();
-        if (response.data) {
-          for (const page of response.data) {
-            if (!seenPageIds.has(page.id)) {
-              seenPageIds.add(page.id);
-              allFacebookPages.push(page);
-            }
-          }
-        }
-        nextUrl = response.paging?.next;
-      }
-    };
-
-    // Fetch pages the user explicitly shared during the OAuth dialog
-    await fetchPaginated(
-      `https://graph.facebook.com/v20.0/me/accounts?fields=id,instagram_business_account,username,name,picture.type(large)&limit=100&access_token=${accessToken}`
-    );
-
-    // Also fetch pages via Business Manager API to discover pages
-    // not selected during the OAuth page selection step
-    try {
-      let bizUrl:
-        | string
-        | undefined = `https://graph.facebook.com/v20.0/me/businesses?access_token=${accessToken}`;
-
-      while (bizUrl) {
-        const bizResponse = await (await fetch(bizUrl)).json();
-        if (bizResponse.data) {
-          for (const business of bizResponse.data) {
-            try {
-              await fetchPaginated(
-                `https://graph.facebook.com/v20.0/${business.id}/owned_pages?fields=id,instagram_business_account,username,name,picture.type(large)&limit=100&access_token=${accessToken}`
-              );
-            } catch {
-              // Continue with other businesses
-            }
-
-            try {
-              await fetchPaginated(
-                `https://graph.facebook.com/v20.0/${business.id}/client_pages?fields=id,instagram_business_account,username,name,picture.type(large)&limit=100&access_token=${accessToken}`
-              );
-            } catch {
-              // Continue with other businesses
-            }
-          }
-        }
-        bizUrl = bizResponse.paging?.next;
-      }
-    } catch {
-      // Business Manager API not available for all users
-    }
+    const { data } = await (
+      await fetch(
+        `https://graph.facebook.com/v20.0/me/accounts?fields=id,instagram_business_account,username,name,picture.type(large)&access_token=${accessToken}&limit=500`
+      )
+    ).json();
 
     const onlyConnectedAccounts = await Promise.all(
-      allFacebookPages
+      data
         .filter((f: any) => f.instagram_business_account)
         .map(async (p: any) => {
           return {
             pageId: p.id,
             ...(await (
               await fetch(
-                `https://graph.facebook.com/v20.0/${p.instagram_business_account.id}?fields=name,profile_picture_url&access_token=${accessToken}`
+                `https://graph.facebook.com/v20.0/${p.instagram_business_account.id}?fields=name,profile_picture_url&access_token=${accessToken}&limit=500`
               )
             ).json()),
             id: p.instagram_business_account.id,
@@ -541,9 +478,7 @@ export class InstagramProvider
             ? `&caption=${encodeURIComponent(firstPost.message)}`
             : ``;
         const isCarousel =
-          (firstPost?.media?.length || 0) > 1 && !isStory
-            ? `&is_carousel_item=true`
-            : ``;
+          (firstPost?.media?.length || 0) > 1 && !isStory ? `&is_carousel_item=true` : ``;
         const mediaType =
           m.path.indexOf('.mp4') > -1
             ? firstPost?.media?.length === 1
@@ -804,7 +739,7 @@ export class InstagramProvider
     date: number,
     type = 'graph.facebook.com'
   ): Promise<AnalyticsData[]> {
-    const until = dayjs().startOf('day').unix();
+    const until = dayjs().endOf('day').unix();
     const since = dayjs().subtract(date, 'day').unix();
 
     const { data, ...all } = await (

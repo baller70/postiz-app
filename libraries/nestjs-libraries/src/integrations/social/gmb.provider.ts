@@ -174,31 +174,18 @@ export class GmbProvider extends SocialAbstract implements SocialProvider {
   }
 
   async pages(accessToken: string) {
-    // Get all accounts with pagination
-    const allAccounts: any[] = [];
-    let accountsPageToken: string | undefined;
-
-    do {
-      const params = new URLSearchParams();
-      if (accountsPageToken) {
-        params.set('pageToken', accountsPageToken);
-      }
-      const url = `https://mybusinessaccountmanagement.googleapis.com/v1/accounts${params.toString() ? `?${params}` : ''}`;
-
-      const accountsResponse = await fetch(url, {
+    // Get all accounts first
+    const accountsResponse = await fetch(
+      'https://mybusinessaccountmanagement.googleapis.com/v1/accounts',
+      {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-      });
-      const accountsData = await accountsResponse.json();
-
-      if (accountsData.accounts) {
-        allAccounts.push(...accountsData.accounts);
       }
-      accountsPageToken = accountsData.nextPageToken;
-    } while (accountsPageToken);
+    );
+    const accountsData = await accountsResponse.json();
 
-    if (allAccounts.length === 0) {
+    if (!accountsData.accounts || accountsData.accounts.length === 0) {
       return [];
     }
 
@@ -211,78 +198,65 @@ export class GmbProvider extends SocialAbstract implements SocialProvider {
       locationName: string;
     }> = [];
 
-    for (const account of allAccounts) {
+    for (const account of accountsData.accounts) {
       const accountName = account.name; // format: accounts/{accountId}
 
       try {
-        // Get all locations with pagination
-        let locationsPageToken: string | undefined;
-
-        do {
-          const params = new URLSearchParams({
-            readMask: 'name,title,storefrontAddress,metadata',
-          });
-          if (locationsPageToken) {
-            params.set('pageToken', locationsPageToken);
+        const locationsResponse = await fetch(
+          `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title,storefrontAddress,metadata`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
           }
+        );
+        const locationsData = await locationsResponse.json();
 
-          const locationsResponse = await fetch(
-            `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?${params}`,
-            {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-            }
-          );
-          const locationsData = await locationsResponse.json();
+        if (locationsData.locations) {
+          for (const location of locationsData.locations) {
+            // location.name is in format: locations/{locationId}
+            // We need the full path: accounts/{accountId}/locations/{locationId}
+            const locationId = location.name.replace('locations/', '');
+            const fullResourceName = `${accountName}/locations/${locationId}`;
 
-          if (locationsData.locations) {
-            for (const location of locationsData.locations) {
-              // location.name is in format: locations/{locationId}
-              // We need the full path: accounts/{accountId}/locations/{locationId}
-              const locationId = location.name.replace('locations/', '');
-              const fullResourceName = `${accountName}/locations/${locationId}`;
-
-              // Get profile photo if available
-              let photoUrl = '';
-              try {
-                const mediaResponse = await fetch(
-                  `https://mybusinessbusinessinformation.googleapis.com/v1/${location.name}/media`,
-                  {
-                    headers: {
-                      Authorization: `Bearer ${accessToken}`,
-                    },
-                  }
-                );
-                const mediaData = await mediaResponse.json();
-                if (mediaData.mediaItems && mediaData.mediaItems.length > 0) {
-                  const profilePhoto = mediaData.mediaItems.find(
-                    (m: any) =>
-                      m.mediaFormat === 'PHOTO' &&
-                      m.locationAssociation?.category === 'PROFILE'
-                  );
-                  if (profilePhoto?.googleUrl) {
-                    photoUrl = profilePhoto.googleUrl;
-                  } else if (mediaData.mediaItems[0]?.googleUrl) {
-                    photoUrl = mediaData.mediaItems[0].googleUrl;
-                  }
+            // Get profile photo if available
+            let photoUrl = '';
+            try {
+              const mediaResponse = await fetch(
+                `https://mybusinessbusinessinformation.googleapis.com/v1/${location.name}/media`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                  },
                 }
-              } catch {
-                // Ignore media fetch errors
+              );
+              const mediaData = await mediaResponse.json();
+              if (mediaData.mediaItems && mediaData.mediaItems.length > 0) {
+                const profilePhoto = mediaData.mediaItems.find(
+                  (m: any) =>
+                    m.mediaFormat === 'PHOTO' &&
+                    m.locationAssociation?.category === 'PROFILE'
+                );
+                if (profilePhoto?.googleUrl) {
+                  photoUrl = profilePhoto.googleUrl;
+                } else if (mediaData.mediaItems[0]?.googleUrl) {
+                  photoUrl = mediaData.mediaItems[0].googleUrl;
+                }
               }
-
-              allLocations.push({
-                // id is the full resource path for the v4 API: accounts/{accountId}/locations/{locationId}
-                id: fullResourceName,
-                name: location.title || 'Unnamed Location',
-                picture: { data: { url: photoUrl } },
-                accountName: accountName,
-                locationName: location.name,
-              });
+            } catch {
+              // Ignore media fetch errors
             }
+
+            allLocations.push({
+              // id is the full resource path for the v4 API: accounts/{accountId}/locations/{locationId}
+              id: fullResourceName,
+              name: location.title || 'Unnamed Location',
+              picture: { data: { url: photoUrl } },
+              accountName: accountName,
+              locationName: location.name,
+            });
           }
-          locationsPageToken = locationsData.nextPageToken;
-        } while (locationsPageToken);
+        }
       } catch (error) {
         // Continue with other accounts if one fails
         console.error(

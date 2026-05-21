@@ -19,17 +19,16 @@ function iteratorToStream(iterator: any) {
     },
   });
 }
-export const GET = async (
+export const GET = (
   request: NextRequest,
   context: {
-    params: Promise<{
-      path?: string[];
-    }>;
+    params: {
+      path: string[];
+    };
   }
 ) => {
-  const { path } = await context.params;
   const filePath =
-    process.env.UPLOAD_DIRECTORY + '/' + (path ?? []).join('/');
+    process.env.UPLOAD_DIRECTORY + '/' + context.params.path.join('/');
   const response = createReadStream(filePath);
   const fileStats = statSync(filePath);
   const contentType = mime.getType(filePath) || 'application/octet-stream';

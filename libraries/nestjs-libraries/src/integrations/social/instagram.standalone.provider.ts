@@ -40,12 +40,11 @@ export class InstagramStandaloneProvider
   }
 
   public override handleErrors(
-    body: string,
-    status: number
+    body: string
   ):
     | { type: 'refresh-token' | 'bad-body' | 'retry'; value: string }
     | undefined {
-    return instagramProvider.handleErrors(body, status);
+    return instagramProvider.handleErrors(body);
   }
 
   async refreshToken(refresh_token: string): Promise<AuthTokenDetails> {

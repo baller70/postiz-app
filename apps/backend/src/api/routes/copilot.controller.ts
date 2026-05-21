@@ -20,7 +20,7 @@ import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/s
 import { MastraAgent } from '@ag-ui/mastra';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import { Request, Response } from 'express';
-import { RequestContext } from '@mastra/core/di';
+import { RuntimeContext } from '@mastra/core/di';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 
@@ -72,19 +72,20 @@ export class CopilotController {
       return;
     }
     const mastra = await this._mastraService.mastra();
-    const requestContext = new RequestContext<ChannelsContext>();
-    requestContext.set(
+    const runtimeContext = new RuntimeContext<ChannelsContext>();
+    runtimeContext.set(
       'integrations',
       req?.body?.variables?.properties?.integrations || []
     );
 
-    requestContext.set('organization', JSON.stringify(organization));
-    requestContext.set('ui', 'true');
+    runtimeContext.set('organization', JSON.stringify(organization));
+    runtimeContext.set('ui', 'true');
 
     const agents = MastraAgent.getLocalAgents({
       resourceId: organization.id,
       mastra,
-      requestContext: requestContext as any,
+      // @ts-ignore
+      runtimeContext,
     });
 
     const runtime = new CopilotRuntime({
@@ -123,7 +124,7 @@ export class CopilotController {
     const mastra = await this._mastraService.mastra();
     const memory = await mastra.getAgent('postiz').getMemory();
     try {
-      return await memory.recall({
+      return await memory.query({
         resourceId: organization.id,
         threadId,
       });
@@ -136,12 +137,14 @@ export class CopilotController {
   @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   async getList(@GetOrgFromRequest() organization: Organization) {
     const mastra = await this._mastraService.mastra();
+    // @ts-ignore
     const memory = await mastra.getAgent('postiz').getMemory();
-    const list = await memory.listThreads({
-      filter: { resourceId: organization.id },
+    const list = await memory.getThreadsByResourceIdPaginated({
+      resourceId: organization.id,
       perPage: 100000,
       page: 0,
-      orderBy: { field: 'createdAt', direction: 'DESC' },
+      orderBy: 'createdAt',
+      sortDirection: 'DESC',
     });
 
     return {
