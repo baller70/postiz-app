@@ -1,0 +1,38 @@
+services:
+  postiz:
+    entrypoint:
+    - /bin/bash
+    - /custom-entrypoint.sh
+    command: []
+    environment:
+      DATABASE_URL: postgresql://kevinhouston@172.20.0.1:5432/postiz
+      NODE_DISABLE_COMPILE_CACHE: '1'
+      TZ: America/New_York
+      DISABLE_IMAGE_COMPRESSION: 'true'
+      X_API_KEY: BCRkqMYflJmIZH7DWnsF5cyPz
+      X_API_SECRET: KhREexywDs5uXlykt1h7D5KlalGNl4O1627lj6dkTnkoRGtDqz
+      YOUTUBE_CLIENT_ID: 146191090552-1ilojqjleq904q6r9phcugjnnpg0jn5o
+      YOUTUBE_CLIENT_SECRET: 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
+      MAIN_URL: https://postiz.194-146-12-139.sslip.io
+      FRONTEND_URL: https://postiz.194-146-12-139.sslip.io
+      NEXT_PUBLIC_BACKEND_URL: https://postiz.194-146-12-139.sslip.io/api
+      JWT_SECRET: ee197fbbcbc86c1b00b56066fb1b30c153ff1f1bd5b190cf19b07973f76ac267
+      API_LIMIT: '500'
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      FACEBOOK_CONFIG_ID: ${FACEBOOK_CONFIG_ID}
+      THREADS_APP_ID: ${THREADS_APP_ID}
+      THREADS_APP_SECRET: ${THREADS_APP_SECRET}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      TIKTOK_CLIENT_ID: ${TIKTOK_CLIENT_ID}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET}
+      GOOGLE_GMB_CLIENT_ID: ${GOOGLE_GMB_CLIENT_ID}
+      GOOGLE_GMB_CLIENT_SECRET: ${GOOGLE_GMB_CLIENT_SECRET}
+    volumes:
+    - /opt/postiz-patches/custom-entrypoint.sh:/custom-entrypoint.sh:ro
+    - /opt/postiz-patches:/patches:ro
+    - postiz-config:/config/
+    - postiz-uploads:/uploads/
+    ports:
+    - 4085:3000
