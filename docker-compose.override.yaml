@@ -6,7 +6,7 @@ services:
     - /custom-entrypoint.sh
     command: []
     environment:
-      DATABASE_URL: postgresql://kevinhouston@172.20.0.1:5432/postiz
+      DATABASE_URL: postgresql://kevinhouston@172.17.0.1:5432/postiz
       NODE_DISABLE_COMPILE_CACHE: '1'
       TZ: America/New_York
       DISABLE_IMAGE_COMPRESSION: 'true'
