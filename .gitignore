@@ -65,3 +65,7 @@ container-env-backup.txt
 .env.clean
 .env.bak-live-url-20260606
 .env.docker
+
+# KC-CURATED-IGNORE-20260618: build-rollback artifacts + manual edit backups
+.next.*
+*.bak-*
