@@ -16,7 +16,7 @@ const model = new ChatOpenAI({
   configuration: {
     baseURL: miniMaxConfig.baseURL,
   },
-  temperature: 0,
+  temperature: 0.1,
 });
 
 interface WorkflowChannelsState {
