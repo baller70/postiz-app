@@ -233,7 +233,7 @@ export class NoAuthIntegrationsController {
         expiresIn,
         username,
         refresh ? false : integrationProvider.isBetweenSteps,
-        body.refresh,
+        refresh || body.refresh,
         +body.timezone,
         details
           ? AuthService.fixedEncryption(details)
