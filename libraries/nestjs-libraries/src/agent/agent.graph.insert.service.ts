@@ -7,10 +7,15 @@ import { agentCategories } from '@gitroom/nestjs-libraries/agent/agent.categorie
 import { z } from 'zod';
 import { agentTopics } from '@gitroom/nestjs-libraries/agent/agent.topics';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
+import { getMiniMaxConfig } from '@gitroom/nestjs-libraries/chat/minimax.config';
 
+const miniMaxConfig = getMiniMaxConfig();
 const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'gpt-4o-2024-08-06',
+  apiKey: miniMaxConfig.apiKey || 'missing-minimax-key',
+  model: miniMaxConfig.model,
+  configuration: {
+    baseURL: miniMaxConfig.baseURL,
+  },
   temperature: 0,
 });
 

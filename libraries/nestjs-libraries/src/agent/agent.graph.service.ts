@@ -15,15 +15,20 @@ import { z } from 'zod';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { GeneratorDto } from '@gitroom/nestjs-libraries/dtos/generator/generator.dto';
+import { getMiniMaxConfig } from '@gitroom/nestjs-libraries/chat/minimax.config';
 
 const tools = !process.env.TAVILY_API_KEY
   ? []
   : [new TavilySearch({ maxResults: 3 })];
 const toolNode = new ToolNode(tools);
 
+const miniMaxConfig = getMiniMaxConfig();
 const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'gpt-4.1',
+  apiKey: miniMaxConfig.apiKey || 'missing-minimax-key',
+  model: miniMaxConfig.model,
+  configuration: {
+    baseURL: miniMaxConfig.baseURL,
+  },
   temperature: 0.7,
 });
 
