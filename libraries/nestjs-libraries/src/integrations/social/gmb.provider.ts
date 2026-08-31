@@ -39,6 +39,7 @@ const clientAndGmb = () => {
 )
 export class GmbProvider extends SocialAbstract implements SocialProvider {
   override maxConcurrentJob = 3;
+  allowIdMigration = true;
   identifier = 'gmb';
   name = 'Google My Business';
   isBetweenSteps = true;
@@ -384,14 +385,19 @@ export class GmbProvider extends SocialAbstract implements SocialProvider {
     accessToken: string
   ): Promise<Omit<AuthTokenDetails, 'refreshToken' | 'expiresIn'>> {
     const pages = await this.pages(accessToken);
-    const findPage = pages.find((p) => p.id === requiredId);
+    const requiredLocationId = requiredId.split('/').pop();
+    const findPage = pages.find(
+      (page) =>
+        page.id === requiredId ||
+        page.locationName === `locations/${requiredLocationId}`
+    );
 
     if (!findPage) {
       throw new Error('Location not found');
     }
 
     const information = await this.fetchPageInformation(accessToken, {
-      id: requiredId,
+      id: findPage.id,
       accountName: findPage.accountName,
       locationName: findPage.locationName,
     });

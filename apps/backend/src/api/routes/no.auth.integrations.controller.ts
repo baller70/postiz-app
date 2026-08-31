@@ -188,7 +188,11 @@ export class NoAuthIntegrationsController {
       throw new NotEnoughScopes('Invalid API key');
     }
 
-    if (refresh && String(id) !== String(refresh)) {
+    if (
+      refresh &&
+      String(id) !== String(refresh) &&
+      !integrationProvider.allowIdMigration
+    ) {
       throw new NotEnoughScopes(
         'Please refresh the channel that needs to be refreshed'
       );

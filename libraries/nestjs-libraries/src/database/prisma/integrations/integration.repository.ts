@@ -240,6 +240,47 @@ export class IntegrationRepository {
           ]),
         }
       : {};
+
+    if (refresh && internalId !== refresh) {
+      const existingIntegration =
+        await this._integration.model.integration.findUnique({
+          where: {
+            organizationId_internalId: {
+              internalId: refresh,
+              organizationId: org,
+            },
+          },
+        });
+
+      if (existingIntegration) {
+        return this._integration.model.integration.update({
+          where: {
+            id: existingIntegration.id,
+          },
+          data: {
+            ...(additionalSettings
+              ? { additionalSettings: JSON.stringify(additionalSettings) }
+              : {}),
+            ...(customInstanceDetails ? { customInstanceDetails } : {}),
+            type: type as any,
+            ...(picture ? { picture } : {}),
+            profile: username,
+            providerIdentifier: provider,
+            token,
+            refreshToken,
+            ...(expiresIn
+              ? { tokenExpiration: new Date(Date.now() + expiresIn * 1000) }
+              : {}),
+            internalId,
+            rootInternalId: internalId,
+            organizationId: org,
+            deletedAt: null,
+            refreshNeeded: false,
+          },
+        });
+      }
+    }
+
     const upsert = await this._integration.model.integration.upsert({
       where: {
         organizationId_internalId: {
