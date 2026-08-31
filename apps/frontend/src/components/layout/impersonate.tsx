@@ -1,5 +1,13 @@
 import { Input } from '@gitroom/react/form/input';
-import { ChangeEventHandler, FC, useCallback, useMemo, useState } from 'react';
+import {
+  ChangeEventHandler,
+  FC,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
@@ -12,6 +20,18 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { Button } from '@gitroom/react/form/button';
 import { ImportDebugPostModal } from '@gitroom/frontend/components/launches/import-debug-post.modal';
+import { MenuItem } from '@gitroom/frontend/components/new-layout/menu-item';
+import {
+  FiAlertTriangle,
+  FiBarChart2,
+  FiBell,
+  FiChevronRight,
+  FiSearch,
+  FiShield,
+  FiUpload,
+  FiUserCheck,
+  FiX,
+} from '@meronex/icons/fi';
 
 interface Charge {
   id: string;
@@ -28,13 +48,17 @@ interface Charge {
 
 const useCharges = () => {
   const fetch = useFetch();
-  return useSWR<Charge[]>('/billing/charges', async () => {
-    return (await fetch('/billing/charges')).json();
-  }, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-  });
+  return useSWR<Charge[]>(
+    '/billing/charges',
+    async () => {
+      return (await fetch('/billing/charges')).json();
+    },
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+    }
+  );
 };
 
 const ChargesModal: FC<{ close: () => void }> = ({ close }) => {
@@ -189,7 +213,11 @@ const ChargesModal: FC<{ close: () => void }> = ({ close }) => {
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center justify-center w-[28px] h-[28px] rounded-[4px] hover:bg-tableBorder transition-colors"
-                        title={charge.invoice_pdf ? t('download_invoice', 'Download Invoice') : t('view_receipt', 'View Receipt')}
+                        title={
+                          charge.invoice_pdf
+                            ? t('download_invoice', 'Download Invoice')
+                            : t('view_receipt', 'View Receipt')
+                        }
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -237,24 +265,26 @@ const ChargesModal: FC<{ close: () => void }> = ({ close }) => {
   );
 };
 
-const ManageBilling = () => {
+const ManageBilling = ({ onAction }: { onAction?: () => void }) => {
   const { openModal } = useModals();
   const t = useT();
 
   const handleClick = useCallback(() => {
+    onAction?.();
     openModal({
       title: t('manage_billing', 'Manage Billing'),
       children: (close) => <ChargesModal close={close} />,
     });
-  }, []);
+  }, [onAction, openModal, t]);
 
   return (
-    <div
-      className="px-[10px] rounded-[4px] bg-red-700 text-white cursor-pointer whitespace-nowrap"
+    <button
+      type="button"
+      className="h-[38px] rounded-[6px] border border-newTableBorder px-[12px] text-[12px] font-[600] text-newTextColor hover:bg-boxHover"
       onClick={handleClick}
     >
       {t('manage_billing', 'Manage Billing')}
-    </div>
+    </button>
   );
 };
 
@@ -367,8 +397,12 @@ const AddAnnouncementModal: FC<{ close: () => void }> = ({ close }) => {
             <div
               key={opt.value}
               onClick={() => setColor(opt.value)}
-              className={`flex-1 text-center py-[8px] rounded-[8px] text-white text-[13px] cursor-pointer transition-opacity ${opt.className} ${
-                color === opt.value ? 'opacity-100 ring-2 ring-white' : 'opacity-40'
+              className={`flex-1 text-center py-[8px] rounded-[8px] text-white text-[13px] cursor-pointer transition-opacity ${
+                opt.className
+              } ${
+                color === opt.value
+                  ? 'opacity-100 ring-2 ring-white'
+                  : 'opacity-40'
               }`}
             >
               {opt.label}
@@ -390,82 +424,109 @@ const AddAnnouncementModal: FC<{ close: () => void }> = ({ close }) => {
   );
 };
 
-const AddAnnouncement = () => {
+const AdminAction = ({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex min-h-[44px] w-full items-center gap-[10px] rounded-[6px] border border-newTableBorder px-[11px] text-start text-[12px] font-[600] text-newTextColor hover:bg-boxHover"
+  >
+    <span className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-[6px] bg-boxHover text-textItemBlur">
+      {icon}
+    </span>
+    <span className="min-w-0 flex-1 truncate">{label}</span>
+    <FiChevronRight
+      size={14}
+      className="shrink-0 text-textItemBlur"
+      aria-hidden="true"
+    />
+  </button>
+);
+
+const AddAnnouncement = ({ onAction }: { onAction: () => void }) => {
   const { openModal } = useModals();
   const t = useT();
 
   const handleClick = useCallback(() => {
+    onAction();
     openModal({
       title: t('add_announcement', 'Add Announcement'),
       children: (close) => <AddAnnouncementModal close={close} />,
     });
-  }, []);
+  }, [onAction, openModal, t]);
 
   return (
-    <div
-      className="px-[10px] rounded-[4px] bg-green-700 text-white cursor-pointer whitespace-nowrap"
+    <AdminAction
+      icon={<FiBell size={16} aria-hidden="true" />}
+      label={t('add_announcement', 'Add Announcement')}
       onClick={handleClick}
-    >
-      {t('add_announcement', 'Add Announcement')}
-    </div>
+    />
   );
 };
 
-const ViewErrors = () => {
+const ViewErrors = ({ onAction }: { onAction: () => void }) => {
   const t = useT();
   const handleClick = useCallback(() => {
+    onAction();
     window.location.href = '/admin/errors';
-  }, []);
+  }, [onAction]);
   return (
-    <div
-      className="px-[10px] rounded-[4px] bg-blue-700 text-white cursor-pointer whitespace-nowrap"
+    <AdminAction
+      icon={<FiAlertTriangle size={16} aria-hidden="true" />}
+      label={t('view_errors', 'View Errors')}
       onClick={handleClick}
-    >
-      {t('view_errors', 'View Errors')}
-    </div>
+    />
   );
 };
 
-const ViewStats = () => {
+const ViewStats = ({ onAction }: { onAction: () => void }) => {
   const t = useT();
   const handleClick = useCallback(() => {
+    onAction();
     window.location.href = '/admin/stats';
-  }, []);
+  }, [onAction]);
   return (
-    <div
-      className="px-[10px] rounded-[4px] bg-purple-700 text-white cursor-pointer whitespace-nowrap"
+    <AdminAction
+      icon={<FiBarChart2 size={16} aria-hidden="true" />}
+      label={t('view_stats', 'View Stats')}
       onClick={handleClick}
-    >
-      {t('view_stats', 'View Stats')}
-    </div>
+    />
   );
 };
 
-const ImportDebugPost = () => {
+const ImportDebugPost = ({ onAction }: { onAction: () => void }) => {
   const { openModal } = useModals();
   const t = useT();
 
   const handleClick = useCallback(() => {
+    onAction();
     openModal({
       title: t('import_debug_post', 'Import Debug Post'),
       maxSize: 800,
       children: (close) => <ImportDebugPostModal close={close} />,
     });
-  }, []);
+  }, [onAction, openModal, t]);
 
   return (
-    <div
-      className="px-[10px] rounded-[4px] bg-yellow-600 text-white cursor-pointer whitespace-nowrap"
+    <AdminAction
+      icon={<FiUpload size={16} aria-hidden="true" />}
+      label={t('import_debug_post', 'Import Debug Post')}
       onClick={handleClick}
-    >
-      {t('import_debug_post', 'Import Debug Post')}
-    </div>
+    />
   );
 };
 
 export const Impersonate = () => {
   const fetch = useFetch();
   const [name, setName] = useState('');
+  const [open, setOpen] = useState(false);
   const { isSecured, billingEnabled } = useVariables();
   const user = useUser();
   const load = useCallback(async () => {
@@ -489,6 +550,25 @@ export const Impersonate = () => {
     window.location.reload();
   }, []);
   const t = useT();
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    setName('');
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closePanel();
+      }
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [closePanel, open]);
 
   const setUser = useCallback(
     (userId: string) => async () => {
@@ -522,69 +602,138 @@ export const Impersonate = () => {
     );
   }, [data]);
   return (
-    <div>
-      <div className="bg-forth h-[52px] flex justify-center items-center border-input border rounded-[8px] text-white">
-        <div className="relative flex flex-col w-[600px]">
-          <div className="relative z-[1]">
-            {user?.impersonate ? (
-              <div className="text-center flex justify-center items-center gap-[20px]">
-                <div>
-                  {t('currently_impersonating', 'Currently Impersonating')}
-                </div>
-                <div>
-                  <div
-                    className="px-[10px] rounded-[4px] bg-red-500 text-white cursor-pointer"
-                    onClick={stopImpersonating}
+    <>
+      <MenuItem
+        label={t('admin_tools', 'Admin')}
+        icon={<FiShield size={20} aria-hidden="true" />}
+        path="#"
+        onClick={() => setOpen((current) => !current)}
+      />
+
+      {open ? (
+        <>
+          <button
+            type="button"
+            aria-label={t('close_admin_tools', 'Close admin tools')}
+            className="fixed inset-0 z-[997] cursor-default bg-black/20"
+            onClick={closePanel}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-tools-title"
+            className="fixed bottom-[12px] start-[92px] z-[998] flex max-h-[calc(100vh-24px)] w-[min(360px,calc(100vw-104px))] flex-col overflow-y-auto rounded-[8px] border border-newTableBorder bg-newBgColorInner p-[14px] text-newTextColor shadow-2xl"
+          >
+            <header className="flex items-center justify-between gap-[12px] border-b border-newTableBorder pb-[12px]">
+              <div className="flex min-w-0 items-center gap-[9px]">
+                <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[6px] bg-boxHover text-textItemBlur">
+                  <FiShield size={17} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h2
+                    id="admin-tools-title"
+                    className="truncate text-[14px] font-[700]"
                   >
-                    X
-                  </div>
+                    {t('admin_tools', 'Admin tools')}
+                  </h2>
+                  <p className="truncate text-[10px] text-textItemBlur">
+                    {user?.impersonate
+                      ? t('impersonation_active', 'Impersonation active')
+                      : t('admin_shortcuts', 'User and support shortcuts')}
+                  </p>
                 </div>
-                {user?.tier?.current === 'FREE' && <Subscription />}
-                {billingEnabled && <ManageBilling />}
+              </div>
+              <button
+                type="button"
+                onClick={closePanel}
+                aria-label={t('close_admin_tools', 'Close admin tools')}
+                className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[6px] text-textItemBlur hover:bg-boxHover hover:text-newTextColor"
+              >
+                <FiX size={18} aria-hidden="true" />
+              </button>
+            </header>
+
+            {user?.impersonate ? (
+              <div className="flex flex-col gap-[12px] pt-[12px]">
+                <div className="flex items-center gap-[9px] rounded-[6px] border border-amber-500/30 bg-amber-500/10 p-[10px] text-[12px] font-[600] text-amber-700 dark:text-amber-300">
+                  <FiUserCheck size={17} aria-hidden="true" />
+                  {t('currently_impersonating', 'Currently impersonating')}
+                </div>
+                <button
+                  type="button"
+                  className="flex h-[40px] items-center justify-center gap-[7px] rounded-[6px] bg-red-600 px-[12px] text-[12px] font-[600] text-white hover:bg-red-700"
+                  onClick={stopImpersonating}
+                >
+                  <FiX size={15} aria-hidden="true" />
+                  {t('stop_impersonating', 'Stop impersonating')}
+                </button>
+                {user?.tier?.current === 'FREE' ? <Subscription /> : null}
+                {billingEnabled ? (
+                  <ManageBilling onAction={closePanel} />
+                ) : null}
               </div>
             ) : (
-              <div className="flex items-center gap-[10px]">
-                <div className="flex-1">
-                  <Input
-                    autoComplete="off"
-                    placeholder="Write the user details"
-                    name="impersonate"
-                    disableForm={true}
-                    label=""
-                    removeError={true}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+              <div className="flex flex-col gap-[12px] pt-[12px]">
+                <div className="relative">
+                  <FiSearch
+                    size={16}
+                    className="pointer-events-none absolute start-[11px] top-[13px] z-[1] text-textItemBlur"
+                    aria-hidden="true"
                   />
+                  <div className="[&_input]:ps-[34px]">
+                    <Input
+                      autoComplete="off"
+                      placeholder={t(
+                        'search_users',
+                        'Search users by name or email'
+                      )}
+                      name="impersonate"
+                      disableForm={true}
+                      label=""
+                      removeError={true}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <ImportDebugPost />
-                <AddAnnouncement />
-                <ViewErrors />
-                <ViewStats />
+
+                {name.trim() && data ? (
+                  <div className="max-h-[220px] overflow-y-auto rounded-[6px] border border-newTableBorder">
+                    {mapData?.length ? (
+                      mapData.map((user: any) => (
+                        <button
+                          type="button"
+                          onClick={setUser(user.id)}
+                          key={user.id}
+                          className="flex w-full flex-col border-b border-newTableBorder px-[10px] py-[9px] text-start last:border-b-0 hover:bg-boxHover"
+                        >
+                          <span className="truncate text-[12px] font-[600]">
+                            {user.name || t('unnamed_user', 'Unnamed user')}
+                          </span>
+                          <span className="truncate text-[10px] text-textItemBlur">
+                            {user.email} · {user.id.split('-').at(-1)}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-[10px] py-[14px] text-center text-[11px] text-textItemBlur">
+                        {t('no_users_found', 'No users found')}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="grid grid-cols-1 gap-[7px] sm:grid-cols-2">
+                  <ImportDebugPost onAction={closePanel} />
+                  <AddAnnouncement onAction={closePanel} />
+                  <ViewErrors onAction={closePanel} />
+                  <ViewStats onAction={closePanel} />
+                </div>
               </div>
             )}
-          </div>
-          {!!data?.length && (
-            <>
-              <div
-                className="bg-primary/80 fixed start-0 top-0 w-full h-full z-[998]"
-                onClick={() => setName('')}
-              />
-              <div className="absolute top-[100%] w-full start-0 bg-sixth border border-customColor6 text-textColor z-[999]">
-                {mapData?.map((user: any) => (
-                  <div
-                    onClick={setUser(user.id)}
-                    key={user.id}
-                    className="p-[10px] border-b border-customColor6 hover:bg-tableBorder cursor-pointer"
-                  >
-                    {t('user_1', 'user:')}
-                    {user.id.split('-').at(-1)} - {user.name} - {user.email}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+          </section>
+        </>
+      ) : null}
+    </>
   );
 };

@@ -29,7 +29,6 @@ import { ContinueProvider } from '@gitroom/frontend/components/layout/continue.p
 import { ContextWrapper } from '@gitroom/frontend/components/layout/user.context';
 import { CopilotKit } from '@copilotkit/react-core';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
-import { Impersonate } from '@gitroom/frontend/components/layout/impersonate';
 import { AnnouncementBanner } from '@gitroom/frontend/components/layout/announcement.banner';
 import { Title } from '@gitroom/frontend/components/layout/title';
 import { TopMenu } from '@gitroom/frontend/components/layout/top.menu';
@@ -94,7 +93,6 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                 jakartaSans.className
               )}
             >
-              <div>{user?.admin ? <Impersonate /> : <div />}</div>
               {user.tier === 'FREE' && isGeneral && billingEnabled ? (
                 <FirstBillingComponent />
               ) : (
@@ -105,10 +103,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                     <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
                       <div
                         id="left-menu"
-                        className={clsx(
-                          'fixed h-full w-[64px] start-[17px] flex flex-1 top-0',
-                          user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
-                        )}
+                        className="fixed h-full w-[64px] start-[17px] flex flex-1 top-0"
                       >
                         <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px]">
                           <Logo />
