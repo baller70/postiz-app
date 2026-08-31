@@ -62,7 +62,7 @@ const AnalyticsCard: FC<{
           flex flex-col h-full
           bg-newTableHeader
           border border-newTableBorder
-          rounded-[12px]
+          rounded-[8px]
           overflow-hidden
           transition-all duration-200
           hover:border-[#612bd3]/50
@@ -129,7 +129,7 @@ const RefreshRequiredState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
   const t = useT();
 
   return (
-    <div className="col-span-full flex flex-col items-center justify-center py-[48px] px-[24px] bg-newTableHeader border border-newTableBorder rounded-[12px]">
+    <div className="col-span-full flex flex-col items-center justify-center py-[48px] px-[24px] bg-newTableHeader border border-newTableBorder rounded-[8px]">
       <div className="w-[48px] h-[48px] mb-[16px] rounded-full bg-[#612bd3]/10 flex items-center justify-center">
         <svg
           width="24"
@@ -175,7 +175,7 @@ const NoAnalyticsState: FC = () => {
   const t = useT();
 
   return (
-    <div className="col-span-full flex flex-col items-center justify-center py-[48px] px-[24px] bg-newTableHeader border border-newTableBorder rounded-[12px]">
+    <div className="col-span-full flex flex-col items-center justify-center py-[48px] px-[24px] bg-newTableHeader border border-newTableBorder rounded-[8px]">
       <div className="w-[48px] h-[48px] mb-[16px] rounded-full bg-[#32d583]/10 flex items-center justify-center">
         <svg
           width="24"

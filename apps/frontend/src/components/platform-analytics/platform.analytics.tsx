@@ -1,22 +1,39 @@
 'use client';
 
-import useSWR from 'swr';
-import { useCallback, useMemo, useState } from 'react';
+import { Integration } from '@prisma/client';
+import {
+  FiAlertTriangle,
+  FiCheckCircle,
+  FiClock,
+  FiPauseCircle,
+} from '@meronex/icons/fi';
 import { capitalize, orderBy } from 'lodash';
-import clsx from 'clsx';
+import { useRouter } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
+import useSWR from 'swr';
+import {
+  ALL_BRANDS,
+  AnalyticsIntegrationIdentity,
+  buildAnalyticsBrandSections,
+  filterAnalyticsBrandSections,
+  getAnalyticsDateRanges,
+  getAnalyticsStatusTotals,
+} from '@gitroom/frontend/components/platform-analytics/brand.analytics.utils';
+import { RenderAnalytics } from '@gitroom/frontend/components/platform-analytics/render.analytics';
+import {
+  ConnectionStatus,
+  formatProvider,
+  getConnectionStatus,
+} from '@gitroom/frontend/components/connection-health/connection-health.utils';
+import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import { Button } from '@gitroom/react/form/button';
+import { Select } from '@gitroom/react/form/select';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import SafeImage from '@gitroom/react/helpers/safe.image';
-import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import { RenderAnalytics } from '@gitroom/frontend/components/platform-analytics/render.analytics';
-import { Select } from '@gitroom/react/form/select';
-import { Button } from '@gitroom/react/form/button';
-import { useRouter } from 'next/navigation';
-import { useToaster } from '@gitroom/react/toaster/toaster';
-import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
-import useCookie from 'react-use-cookie';
-import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
-import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import { useT } from '@gitroom/react/translation/get.transation.service.client';
+
 const allowedIntegrations = [
   'facebook',
   'instagram',
@@ -29,137 +46,160 @@ const allowedIntegrations = [
   'threads',
   'x',
 ];
+
+type AnalyticsIntegration = Integration &
+  AnalyticsIntegrationIdentity & {
+    picture: string;
+    identifier: string;
+    internalId: string;
+    inBetweenSteps?: boolean;
+  };
+
+const statusDetails: Record<
+  ConnectionStatus,
+  { label: string; className: string }
+> = {
+  connected: {
+    label: 'Connected',
+    className:
+      'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  },
+  reconnect: {
+    label: 'Reconnect required',
+    className:
+      'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  },
+  expiring: {
+    label: 'Reconnect soon',
+    className:
+      'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
+  disabled: {
+    label: 'Disabled',
+    className: 'border-newTableBorder bg-boxHover text-newTableText',
+  },
+};
+
+function StatusIcon({ status }: { status: ConnectionStatus }) {
+  if (status === 'connected') return <FiCheckCircle size={15} aria-hidden />;
+  if (status === 'reconnect') return <FiAlertTriangle size={15} aria-hidden />;
+  if (status === 'expiring') return <FiClock size={15} aria-hidden />;
+  return <FiPauseCircle size={15} aria-hidden />;
+}
+
+function ConnectionStatusPill({ status }: { status: ConnectionStatus }) {
+  const details = statusDetails[status];
+  return (
+    <span
+      className={`inline-flex min-h-[30px] max-w-full items-center gap-[7px] rounded-[7px] border px-[10px] text-[12px] font-[600] ${details.className}`}
+    >
+      <StatusIcon status={status} />
+      <span className="truncate">{details.label}</span>
+    </span>
+  );
+}
+
+function DisabledAnalyticsState() {
+  return (
+    <div className="flex min-h-[150px] items-center justify-center border-t border-newTableBorder px-[20px] py-[36px] text-center">
+      <div className="flex max-w-[420px] flex-col items-center gap-[8px] text-newTableText">
+        <FiPauseCircle size={24} aria-hidden />
+        <div className="text-[15px] font-[600] text-newTextColor">
+          Channel disabled
+        </div>
+        <div className="text-[13px]">
+          Enable this existing connection before loading its analytics.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const PlatformAnalytics = () => {
   const fetch = useFetch();
   const t = useT();
   const router = useRouter();
   const { disableXAnalytics } = useVariables();
+  const [activeBrand, setActiveBrand] = useState(ALL_BRANDS);
+  const [dateRange, setDateRange] = useState(7);
 
-  const [current, setCurrent] = useState(0);
-  const [key, setKey] = useState(7);
-  const [refresh, setRefresh] = useState(false);
-  const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
-  const toaster = useToaster();
   const load = useCallback(async () => {
-    const int = (
-      await (await fetch('/integrations/list')).json()
-    ).integrations.filter((f: any) => {
-      if (f.identifier === 'x' && disableXAnalytics) {
+    const response = await (await fetch('/integrations/list')).json();
+    return response.integrations.filter((integration: AnalyticsIntegration) => {
+      if (integration.identifier === 'x' && disableXAnalytics) {
         return false;
       }
-      return true;
+      return allowedIntegrations.includes(integration.identifier);
     });
-    return int.filter((f: any) => allowedIntegrations.includes(f.identifier));
-  }, []);
-  const { data, isLoading } = useSWR('analytics-list', load, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-    revalidateOnMount: true,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-    fallbackData: [],
-  });
-  const sortedIntegrations = useMemo(() => {
-    return orderBy(
-      data,
-      ['type', 'disabled', 'identifier'],
-      ['desc', 'asc', 'asc']
-    );
-  }, [data]);
-  const currentIntegration = useMemo(() => {
-    return sortedIntegrations[current];
-  }, [current, sortedIntegrations]);
-  const options = useMemo(() => {
-    if (!currentIntegration) {
-      return [];
+  }, [disableXAnalytics, fetch]);
+
+  const { data = [], isLoading } = useSWR<AnalyticsIntegration[]>(
+    'analytics-list',
+    load,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+      revalidateOnMount: true,
+      refreshWhenHidden: false,
+      refreshWhenOffline: false,
+      fallbackData: [],
     }
-    const arr = [];
-    if (
-      [
-        'facebook',
-        'instagram',
-        'instagram-standalone',
-        'linkedin-page',
-        'pinterest',
-        'youtube',
-        'threads',
-        'gmb',
-        'x',
-        'tiktok',
-      ].indexOf(currentIntegration.identifier) !== -1
-    ) {
-      arr.push({
-        key: 7,
-        value: t('7_days', '7 Days'),
-      });
-    }
-    if (
-      [
-        'facebook',
-        'instagram',
-        'instagram-standalone',
-        'linkedin-page',
-        'pinterest',
-        'youtube',
-        'threads',
-        'gmb',
-        'x',
-        'tiktok',
-      ].indexOf(currentIntegration.identifier) !== -1
-    ) {
-      arr.push({
-        key: 30,
-        value: t('30_days', '30 Days'),
-      });
-    }
-    if (
-      ['facebook', 'linkedin-page', 'pinterest', 'youtube', 'x', 'gmb'].indexOf(
-        currentIntegration.identifier
-      ) !== -1
-    ) {
-      arr.push({
-        key: 90,
-        value: t('90_days', '90 Days'),
-      });
-    }
-    return arr;
-  }, [currentIntegration]);
-  const keys = useMemo(() => {
-    if (!currentIntegration) {
-      return 7;
-    }
-    if (options.find((p) => p.key === key)) {
-      return key;
-    }
-    return options[0]?.key;
-  }, [key, currentIntegration]);
+  );
+
+  const sortedIntegrations = useMemo(
+    () =>
+      orderBy(data, ['type', 'disabled', 'identifier'], ['desc', 'asc', 'asc']),
+    [data]
+  );
+  const brandSections = useMemo(
+    () => buildAnalyticsBrandSections(sortedIntegrations),
+    [sortedIntegrations]
+  );
+  const visibleSections = useMemo(
+    () => filterAnalyticsBrandSections(brandSections, activeBrand),
+    [activeBrand, brandSections]
+  );
+  const visibleIntegrations = useMemo(
+    () => visibleSections.flatMap(({ integrations }) => integrations),
+    [visibleSections]
+  );
+  const dateRanges = useMemo(
+    () => getAnalyticsDateRanges(visibleIntegrations),
+    [visibleIntegrations]
+  );
+  const selectedDateRange = dateRanges.includes(dateRange)
+    ? dateRange
+    : dateRanges[0];
+  const totals = useMemo(
+    () => getAnalyticsStatusTotals(visibleIntegrations),
+    [visibleIntegrations]
+  );
 
   if (isLoading) {
     return (
-      <div className="bg-newBgColorInner p-[20px] flex flex-1 flex-col gap-[15px] transition-all items-center justify-center">
+      <div className="flex flex-1 items-center justify-center bg-newBgColorInner p-[20px]">
         <LoadingComponent />
       </div>
     );
   }
 
-  if (!sortedIntegrations.length && !isLoading) {
+  if (!sortedIntegrations.length) {
     return (
-      <div className="bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all flex-1 justify-center items-center text-center">
-        <div>
-          <img src="/peoplemarketplace.svg" />
-        </div>
-        <div className="text-[48px]">
+      <div className="flex flex-1 flex-col items-center justify-center gap-[15px] bg-newBgColorInner p-[20px] text-center">
+        <img src="/peoplemarketplace.svg" alt="" />
+        <div className="text-[32px] font-[600] sm:text-[40px]">
           {t('can_t_show_analytics_yet', "Can't show analytics yet")}
-          <br />
+        </div>
+        <div className="text-[16px] text-newTableText">
           {t(
             'you_have_to_add_social_media_channels',
             'You have to add Social Media channels'
           )}
         </div>
-        <div className="text-[20px]">
-          {t('supported', 'Supported:')}
-          {allowedIntegrations.map((p) => capitalize(p)).join(', ')}
+        <div className="text-[14px] text-newTableText">
+          {t('supported', 'Supported:')}{' '}
+          {allowedIntegrations.map(capitalize).join(', ')}
         </div>
         <Button onClick={() => router.push('/launches')}>
           {t(
@@ -170,134 +210,137 @@ export const PlatformAnalytics = () => {
       </div>
     );
   }
+
   return (
-    <>
-      <div
-        className={clsx(
-          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
-          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
-        )}
-      >
-        <div className="flex gap-[12px] flex-col">
-          <div className="flex items-center">
-            <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
-              {t('channels')}
-            </h2>
-            <div
-              onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+    <main className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-newBgColorInner">
+      <div className="sticky top-0 z-20 border-b border-newTableBorder bg-newBgColorInner px-[16px] py-[16px] sm:px-[20px]">
+        <div className="flex flex-col gap-[14px] xl:flex-row xl:items-end xl:justify-between">
+          <div className="grid w-full grid-cols-1 gap-[12px] sm:grid-cols-2 xl:max-w-[620px]">
+            <Select
+              label="Brand"
+              name="brand"
+              value={activeBrand}
+              disableForm
+              hideErrors
+              onChange={(event) => setActiveBrand(event.target.value)}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="7"
-                height="13"
-                viewBox="0 0 7 13"
-                fill="none"
-              >
-                <path
-                  d="M6 11.5L1 6.5L6 1.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
+              <option value={ALL_BRANDS}>
+                All Brands ({sortedIntegrations.length} channels)
+              </option>
+              {brandSections.map((section) => (
+                <option key={section.key} value={section.key}>
+                  {section.label} ({section.integrations.length})
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              label="Date range"
+              name="date"
+              value={selectedDateRange}
+              disableForm
+              hideErrors
+              onChange={(event) => setDateRange(Number(event.target.value))}
+            >
+              {dateRanges.map((range) => (
+                <option key={range} value={range}>
+                  {range} Days
+                </option>
+              ))}
+            </Select>
           </div>
-          {sortedIntegrations.map((integration, index) => (
-            <div
-              key={integration.id}
-              onClick={() => {
-                if (integration.refreshNeeded) {
-                  toaster.show(
-                    'Please refresh the integration from the calendar',
-                    'warning'
-                  );
-                  return;
-                }
-                setRefresh(true);
-                setTimeout(() => {
-                  setRefresh(false);
-                }, 10);
-                setCurrent(index);
-              }}
-              className={clsx(
-                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px]',
-                currentIntegration.id !== integration.id &&
-                  'opacity-20 hover:opacity-100 cursor-pointer'
-              )}
-            >
-              <div
-                className={clsx(
-                  'relative rounded-full flex justify-center items-center gap-[6px]',
-                  integration.disabled && 'opacity-50'
-                )}
-              >
-                {(integration.inBetweenSteps || integration.refreshNeeded) && (
-                  <div className="absolute start-0 top-0 w-[39px] h-[46px] cursor-pointer">
-                    <div className="bg-red-500 w-[15px] h-[15px] rounded-full start-0 -top-[5px] absolute z-[200] text-[10px] flex justify-center items-center">
-                      !
-                    </div>
-                    <div className="bg-primary/60 w-[39px] h-[46px] start-0 top-0 absolute rounded-full z-[199]" />
-                  </div>
-                )}
-                <div className="h-full w-[4px] -ms-[12px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity">
-                  <SVGLine />
-                </div>
-                <ImageWithFallback
-                  fallbackSrc={`/icons/platforms/${integration.identifier}.png`}
-                  src={integration.picture}
-                  className="rounded-[8px]"
-                  alt={integration.identifier}
-                  width={36}
-                  height={36}
-                />
-                <SafeImage
-                  src={`/icons/platforms/${integration.identifier}.png`}
-                  className="rounded-[8px] absolute z-10 bottom-[5px] -end-[5px] border border-fifth"
-                  alt={integration.identifier}
-                  width={18.41}
-                  height={18.41}
-                />
-              </div>
-              <div
-                className={clsx(
-                  'flex-1 whitespace-nowrap text-ellipsis overflow-hidden group-[.sidebar]:hidden',
-                  integration.disabled && 'opacity-50'
-                )}
-              >
-                {integration.name}
-              </div>
-            </div>
-          ))}
+
+          <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px] text-[12px] font-[600] text-newTableText">
+            <span className="inline-flex items-center gap-[6px] text-emerald-600 dark:text-emerald-400">
+              <FiCheckCircle size={15} aria-hidden />
+              {totals.connected} connected
+            </span>
+            {totals.reconnect + totals.expiring > 0 ? (
+              <span className="inline-flex items-center gap-[6px] text-rose-600 dark:text-rose-400">
+                <FiAlertTriangle size={15} aria-hidden />
+                {totals.reconnect + totals.expiring} need attention
+              </span>
+            ) : null}
+            {totals.disabled > 0 ? (
+              <span className="inline-flex items-center gap-[6px]">
+                <FiPauseCircle size={15} aria-hidden />
+                {totals.disabled} disabled
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
-        {!!options.length && (
-          <div className="flex-1 flex flex-col gap-[14px]">
-            <div className="max-w-[200px]">
-              <Select
-                label=""
-                name="date"
-                disableForm={true}
-                hideErrors={true}
-                onChange={(e) => setKey(+e.target.value)}
+
+      <div className="flex flex-col">
+        {visibleSections.map((section) => (
+          <section key={section.key} aria-labelledby={`brand-${section.key}`}>
+            <div className="flex items-center justify-between border-b border-newTableBorder px-[16px] py-[14px] sm:px-[20px]">
+              <h2
+                id={`brand-${section.key}`}
+                className="min-w-0 truncate text-[18px] font-[700]"
               >
-                {options.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.value}
-                  </option>
-                ))}
-              </Select>
+                {section.label}
+              </h2>
+              <span className="whitespace-nowrap text-[12px] text-newTableText">
+                {section.integrations.length}{' '}
+                {section.integrations.length === 1 ? 'channel' : 'channels'}
+              </span>
             </div>
-            <div className="flex-1">
-              {!!keys && !!currentIntegration && !refresh && (
-                <RenderAnalytics integration={currentIntegration} date={keys} />
-              )}
-            </div>
-          </div>
-        )}
+
+            {section.integrations.map((integration) => {
+              const status = getConnectionStatus(integration);
+              return (
+                <article
+                  key={integration.id}
+                  className="border-b border-newTableBorder px-[16px] py-[18px] sm:px-[20px] sm:py-[20px]"
+                >
+                  <div className="mb-[16px] flex flex-col gap-[12px] sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-[12px]">
+                      <div className="relative shrink-0">
+                        <ImageWithFallback
+                          fallbackSrc={`/icons/platforms/${integration.identifier}.png`}
+                          src={integration.picture || '/no-picture.jpg'}
+                          className="h-[42px] w-[42px] rounded-[8px] object-cover"
+                          alt=""
+                          width={42}
+                          height={42}
+                        />
+                        <SafeImage
+                          src={`/icons/platforms/${integration.identifier}.png`}
+                          className="absolute -bottom-[4px] -end-[4px] z-10 rounded-[5px] border border-newTableBorder bg-newBgColorInner"
+                          alt=""
+                          width={19}
+                          height={19}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-[15px] font-[600]">
+                          {integration.name ||
+                            integration.display ||
+                            'Unnamed channel'}
+                        </div>
+                        <div className="mt-[2px] text-[12px] text-newTableText">
+                          {formatProvider(integration.identifier)}
+                        </div>
+                      </div>
+                    </div>
+                    <ConnectionStatusPill status={status} />
+                  </div>
+
+                  {status === 'disabled' ? (
+                    <DisabledAnalyticsState />
+                  ) : (
+                    <RenderAnalytics
+                      integration={integration}
+                      date={selectedDateRange}
+                    />
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        ))}
       </div>
-    </>
+    </main>
   );
 };
