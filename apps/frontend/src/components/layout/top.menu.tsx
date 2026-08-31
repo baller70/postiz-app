@@ -7,6 +7,7 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { MenuItem } from '@gitroom/frontend/components/new-layout/menu-item';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { AgentMediaModal } from '@gitroom/frontend/components/layout/agent.media.modal';
+import { FiActivity } from '@meronex/icons/fi';
 
 interface MenuItemInterface {
   name: string;
@@ -92,6 +93,11 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/analytics',
+    },
+    {
+      name: t('connection_health', 'Connections'),
+      icon: <FiActivity size={20} aria-hidden="true" />,
+      path: '/connections',
     },
     {
       name: t('media', 'Media'),
