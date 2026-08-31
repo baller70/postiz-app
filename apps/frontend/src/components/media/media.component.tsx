@@ -53,6 +53,7 @@ import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useDebounce } from 'use-debounce';
+import { ResilientMediaImage } from '@gitroom/frontend/components/media/resilient.media.image';
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
 );
@@ -358,7 +359,7 @@ export const MediaBox: FC<{
                 url={mediaDirectory.set(media.path)}
               />
             ) : (
-              <img
+              <ResilientMediaImage
                 width="100%"
                 height="100%"
                 className="w-full h-full max-h-[100%] max-w-[100%] object-cover"
@@ -583,7 +584,7 @@ export const MediaBox: FC<{
                       {hasExtension(media.path, 'mp4') ? (
                         <VideoFrame url={mediaDirectory.set(media.path)} />
                       ) : (
-                        <img
+                        <ResilientMediaImage
                           width="100%"
                           height="100%"
                           className="w-full h-full object-cover"
