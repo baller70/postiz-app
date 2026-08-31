@@ -23,11 +23,30 @@ import { Request, Response } from 'express';
 import { RequestContext } from '@mastra/core/di';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import OpenAI from 'openai';
+import { getMiniMaxConfig } from '@gitroom/nestjs-libraries/chat/minimax.config';
 
 export type ChannelsContext = {
   integrations: string;
   organization: string;
   ui: string;
+};
+
+const miniMaxAdapter = () => {
+  const config = getMiniMaxConfig();
+  if (!config.apiKey) {
+    return undefined;
+  }
+
+  return new OpenAIAdapter({
+    // CopilotKit and the app resolve different SDK versions with the same client surface.
+    openai: new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseURL,
+    }) as any,
+    model: config.model,
+    keepSystemRole: true,
+  });
 };
 
 @Controller('/copilot')
@@ -38,20 +57,16 @@ export class CopilotController {
   ) {}
   @Post('/chat')
   chatAgent(@Req() req: Request, @Res() res: Response) {
-    if (
-      process.env.OPENAI_API_KEY === undefined ||
-      process.env.OPENAI_API_KEY === ''
-    ) {
-      Logger.warn('OpenAI API key not set, chat functionality will not work');
-      return;
+    const serviceAdapter = miniMaxAdapter();
+    if (!serviceAdapter) {
+      Logger.warn('MiniMax API key not set, chat functionality will not work');
+      return res.status(503).json({ error: 'MiniMax is not configured' });
     }
 
     const copilotRuntimeHandler = copilotRuntimeNodeHttpEndpoint({
       endpoint: '/copilot/chat',
       runtime: new CopilotRuntime(),
-      serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
-      }),
+      serviceAdapter,
     });
 
     return copilotRuntimeHandler(req, res);
@@ -64,12 +79,10 @@ export class CopilotController {
     @Res() res: Response,
     @GetOrgFromRequest() organization: Organization
   ) {
-    if (
-      process.env.OPENAI_API_KEY === undefined ||
-      process.env.OPENAI_API_KEY === ''
-    ) {
-      Logger.warn('OpenAI API key not set, chat functionality will not work');
-      return;
+    const serviceAdapter = miniMaxAdapter();
+    if (!serviceAdapter) {
+      Logger.warn('MiniMax API key not set, chat functionality will not work');
+      return res.status(503).json({ error: 'MiniMax is not configured' });
     }
     const mastra = await this._mastraService.mastra();
     const requestContext = new RequestContext<ChannelsContext>();
@@ -95,9 +108,7 @@ export class CopilotController {
       endpoint: '/copilot/agent',
       runtime,
       // properties: req.body.variables.properties,
-      serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
-      }),
+      serviceAdapter,
     });
 
     return copilotRuntimeHandler.handleRequest(req, res);
