@@ -3,6 +3,7 @@ import {
   MINIMAX_DEFAULT_BASE_URL,
   MINIMAX_DEFAULT_MODEL,
 } from './minimax.config';
+import { describe, expect, it } from 'vitest';
 
 describe('getMiniMaxConfig', () => {
   it('uses the MiniMax M3 OpenAI-compatible defaults', () => {
