@@ -98,6 +98,7 @@ export class ThreadsProvider extends SocialAbstract implements SocialProvider {
       url:
         'https://www.threads.net/oauth/authorize' +
         `?client_id=${process.env.THREADS_APP_ID}` +
+        `&response_type=code` +
         `&redirect_uri=${encodeURIComponent(
           `${
             process?.env.FRONTEND_URL?.indexOf('https') == -1
