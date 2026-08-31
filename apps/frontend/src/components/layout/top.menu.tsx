@@ -383,7 +383,7 @@ export const TopMenu: FC = () => {
               onClick={item.onClick}
             />
           ))}
-        {user?.admin ? (
+        {user?.isSuperAdmin ? (
           <div className="border-t border-newTableBorder pt-[8px]">
             <Impersonate />
           </div>
