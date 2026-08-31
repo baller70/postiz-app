@@ -135,7 +135,12 @@ export class NoAuthIntegrationsController {
               refresh,
               auth.accessToken
             );
-            return res({ ...newAuth, refreshToken: body.refresh });
+            return res({
+              ...auth,
+              ...newAuth,
+              refreshToken: auth.refreshToken,
+              expiresIn: auth.expiresIn,
+            });
           } catch (err: any) {
             return res({
               error: err.message,
