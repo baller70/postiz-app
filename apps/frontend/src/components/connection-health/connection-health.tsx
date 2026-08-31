@@ -11,7 +11,6 @@ import {
   FiExternalLink,
   FiGrid,
   FiPauseCircle,
-  FiPlus,
   FiRefreshCw,
   FiSearch,
 } from '@meronex/icons/fi';
@@ -23,7 +22,6 @@ import {
   BRAND_DEFINITIONS,
   BrandKey,
   BrandPlatformRow,
-  BrandPlatformStatus,
   ConnectionStatus,
   buildBrandPlatformRows,
   formatProvider,
@@ -54,7 +52,7 @@ interface ChannelConnection {
 }
 
 type ChannelWithStatus = ChannelConnection & { status: ConnectionStatus };
-type Filter = 'all' | 'attention' | 'connected' | 'disabled' | 'missing';
+type Filter = 'all' | 'attention' | 'connected' | 'disabled';
 type ConnectionView = 'all' | BrandKey;
 
 const statusDetails = {
@@ -86,14 +84,8 @@ const statusDetails = {
       'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
     dotClassName: 'bg-amber-500',
   },
-  missing: {
-    label: 'Missing',
-    icon: FiPlus,
-    className: 'border-newTableBorder bg-boxHover text-newTableText',
-    dotClassName: 'bg-newTableText',
-  },
 } satisfies Record<
-  BrandPlatformStatus,
+  ConnectionStatus,
   {
     label: string;
     icon: typeof FiCheckCircle;
@@ -129,7 +121,7 @@ function connectionTiming(integration: ChannelConnection) {
   return updated ? `Connection updated ${updated}` : 'No expiry reported';
 }
 
-function StatusPill({ status }: { status: BrandPlatformStatus }) {
+function StatusPill({ status }: { status: ConnectionStatus }) {
   const details = statusDetails[status];
   const Icon = details.icon;
 
@@ -265,9 +257,6 @@ export const ConnectionHealth = () => {
         if (filter === 'disabled' && channel.status !== 'disabled') {
           return false;
         }
-        if (filter === 'missing') {
-          return false;
-        }
         if (!query) {
           return true;
         }
@@ -306,9 +295,6 @@ export const ConnectionHealth = () => {
         return false;
       }
       if (filter === 'disabled' && row.status !== 'disabled') {
-        return false;
-      }
-      if (filter === 'missing' && row.status !== 'missing') {
         return false;
       }
       if (!query) {
@@ -363,9 +349,6 @@ export const ConnectionHealth = () => {
 
   const changeView = (view: ConnectionView) => {
     setActiveView(view);
-    if (view === 'all' && filter === 'missing') {
-      setFilter('all');
-    }
   };
 
   if (isLoading) {
@@ -389,7 +372,6 @@ export const ConnectionHealth = () => {
         ['attention', `Needs attention ${activeBrand.totals.attention}`],
         ['connected', `Connected ${activeBrand.totals.connected}`],
         ['disabled', `Disabled ${activeBrand.totals.disabled}`],
-        ['missing', `Missing ${activeBrand.totals.missing}`],
       ]
     : [
         ['all', `All ${channels.length}`],
@@ -503,7 +485,7 @@ export const ConnectionHealth = () => {
               <p className="mt-[5px] text-[12px] text-newTableText">
                 {activeBrand.connectionCount} account
                 {activeBrand.connectionCount === 1 ? '' : 's'} across{' '}
-                {activeBrand.totals.present} connected platform
+                {activeBrand.totals.present} platform
                 {activeBrand.totals.present === 1 ? '' : 's'}
               </p>
             </div>
@@ -522,9 +504,6 @@ export const ConnectionHealth = () => {
               </span>
               <span className="text-newTableText">
                 {activeBrand.totals.disabled} disabled
-              </span>
-              <span className="text-newTableText">
-                {activeBrand.totals.missing} missing
               </span>
             </div>
           </section>
@@ -775,111 +754,86 @@ function BrandPlatformMatrixRow({
         <div className="min-w-0">
           <div className="truncate text-[13px] font-[600]">{row.label}</div>
           <div className="mt-[2px] text-[11px] text-newTableText">
-            {row.connections.length
-              ? `${row.connections.length} account${
-                  row.connections.length === 1 ? '' : 's'
-                }`
-              : 'Not connected'}
+            {row.connections.length} account
+            {row.connections.length === 1 ? '' : 's'}
           </div>
         </div>
       </div>
 
       <div className="min-w-0 divide-y divide-newTableBorder/60">
-        {row.connections.length === 0 ? (
-          <div className="grid min-h-[46px] grid-cols-[minmax(220px,1.4fr)_minmax(170px,.8fr)_140px] items-center gap-[14px] mobile:grid-cols-[minmax(0,1fr)_auto] mobile:gap-x-[10px] mobile:gap-y-[7px]">
-            <div className="min-w-0 text-[12px] text-newTableText mobile:col-start-1 mobile:row-start-1">
-              No {row.label} connection found for this brand
-            </div>
-            <div className="mobile:col-start-1 mobile:row-start-2">
-              <StatusPill status="missing" />
-            </div>
-            <div className="flex justify-end mobile:col-start-2 mobile:row-span-2 mobile:row-start-1">
-              <button
-                type="button"
-                onClick={onOpenLaunches}
-                aria-label={`Add ${row.label} connection`}
-                className="flex h-[36px] min-w-[112px] items-center justify-center gap-[7px] rounded-[8px] border border-newTableBorder px-[11px] text-[12px] font-[600] text-newTableText hover:bg-newBgColorInner hover:text-newTextColor mobile:w-[36px] mobile:min-w-[36px] mobile:px-0"
-              >
-                <FiPlus size={15} aria-hidden="true" />
-                <span className="mobile:hidden">Add channel</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          row.connections.map((integration) => {
-            const reconnecting = connectingId === integration.id;
-            const canReconnect =
-              integration.status === 'reconnect' ||
-              integration.status === 'expiring';
+        {row.connections.map((integration) => {
+          const reconnecting = connectingId === integration.id;
+          const canReconnect =
+            integration.status === 'reconnect' ||
+            integration.status === 'expiring';
 
-            return (
-              <div
-                key={integration.id}
-                className="grid min-h-[52px] grid-cols-[minmax(220px,1.4fr)_minmax(170px,.8fr)_140px] items-center gap-[14px] py-[5px] first:pt-0 last:pb-0 mobile:grid-cols-[minmax(0,1fr)_auto] mobile:gap-x-[10px] mobile:gap-y-[7px]"
-              >
-                <div className="flex min-w-0 items-center gap-[9px] mobile:col-start-1 mobile:row-start-1">
-                  <ImageWithFallback
-                    fallbackSrc="/no-picture.jpg"
-                    src={integration.picture || '/no-picture.jpg'}
-                    alt=""
-                    width={34}
-                    height={34}
-                    className="h-[34px] w-[34px] shrink-0 rounded-[7px] object-cover"
-                  />
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-[600]">
-                      {integration.name}
-                    </div>
-                    <div className="mt-[2px] truncate text-[11px] text-newTableText">
-                      {connectionTiming(integration)}
-                    </div>
+          return (
+            <div
+              key={integration.id}
+              className="grid min-h-[52px] grid-cols-[minmax(220px,1.4fr)_minmax(170px,.8fr)_140px] items-center gap-[14px] py-[5px] first:pt-0 last:pb-0 mobile:grid-cols-[minmax(0,1fr)_auto] mobile:gap-x-[10px] mobile:gap-y-[7px]"
+            >
+              <div className="flex min-w-0 items-center gap-[9px] mobile:col-start-1 mobile:row-start-1">
+                <ImageWithFallback
+                  fallbackSrc="/no-picture.jpg"
+                  src={integration.picture || '/no-picture.jpg'}
+                  alt=""
+                  width={34}
+                  height={34}
+                  className="h-[34px] w-[34px] shrink-0 rounded-[7px] object-cover"
+                />
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-[600]">
+                    {integration.name}
+                  </div>
+                  <div className="mt-[2px] truncate text-[11px] text-newTableText">
+                    {connectionTiming(integration)}
                   </div>
                 </div>
-
-                <div className="mobile:col-start-1 mobile:row-start-2 mobile:ps-[43px]">
-                  <StatusPill status={integration.status} />
-                </div>
-
-                <div className="flex justify-end mobile:col-start-2 mobile:row-span-2 mobile:row-start-1 mobile:self-center">
-                  {canReconnect ? (
-                    <button
-                      type="button"
-                      onClick={() => onReconnect(integration)}
-                      disabled={reconnecting}
-                      aria-label={`Reconnect ${integration.name}`}
-                      className="flex h-[36px] min-w-[112px] items-center justify-center gap-[7px] rounded-[8px] bg-btnPrimary px-[11px] text-[12px] font-[600] text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60 mobile:w-[36px] mobile:min-w-[36px] mobile:px-0"
-                    >
-                      <FiRefreshCw
-                        size={15}
-                        className={clsx(reconnecting && 'animate-spin')}
-                        aria-hidden="true"
-                      />
-                      <span className="mobile:hidden">
-                        {reconnecting ? 'Opening...' : 'Reconnect'}
-                      </span>
-                    </button>
-                  ) : integration.status === 'disabled' ? (
-                    <button
-                      type="button"
-                      onClick={onOpenLaunches}
-                      aria-label={`Manage ${integration.name} in Launches`}
-                      className="flex h-[36px] min-w-[112px] items-center justify-center gap-[7px] rounded-[8px] border border-newTableBorder px-[11px] text-[12px] font-[600] text-newTableText hover:bg-newBgColorInner hover:text-newTextColor mobile:w-[36px] mobile:min-w-[36px] mobile:px-0"
-                    >
-                      <FiExternalLink size={14} aria-hidden="true" />
-                      <span className="mobile:hidden">Manage</span>
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-[7px] text-[12px] font-[600] text-emerald-600 dark:text-emerald-400">
-                      <span className="h-[8px] w-[8px] rounded-full bg-emerald-500" />
-                      <span className="mobile:hidden">Ready</span>
-                      <span className="sr-only">Ready to publish</span>
-                    </span>
-                  )}
-                </div>
               </div>
-            );
-          })
-        )}
+
+              <div className="mobile:col-start-1 mobile:row-start-2 mobile:ps-[43px]">
+                <StatusPill status={integration.status} />
+              </div>
+
+              <div className="flex justify-end mobile:col-start-2 mobile:row-span-2 mobile:row-start-1 mobile:self-center">
+                {canReconnect ? (
+                  <button
+                    type="button"
+                    onClick={() => onReconnect(integration)}
+                    disabled={reconnecting}
+                    aria-label={`Reconnect ${integration.name}`}
+                    className="flex h-[36px] min-w-[112px] items-center justify-center gap-[7px] rounded-[8px] bg-btnPrimary px-[11px] text-[12px] font-[600] text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60 mobile:w-[36px] mobile:min-w-[36px] mobile:px-0"
+                  >
+                    <FiRefreshCw
+                      size={15}
+                      className={clsx(reconnecting && 'animate-spin')}
+                      aria-hidden="true"
+                    />
+                    <span className="mobile:hidden">
+                      {reconnecting ? 'Opening...' : 'Reconnect'}
+                    </span>
+                  </button>
+                ) : integration.status === 'disabled' ? (
+                  <button
+                    type="button"
+                    onClick={onOpenLaunches}
+                    aria-label={`Manage ${integration.name} in Launches`}
+                    className="flex h-[36px] min-w-[112px] items-center justify-center gap-[7px] rounded-[8px] border border-newTableBorder px-[11px] text-[12px] font-[600] text-newTableText hover:bg-newBgColorInner hover:text-newTextColor mobile:w-[36px] mobile:min-w-[36px] mobile:px-0"
+                  >
+                    <FiExternalLink size={14} aria-hidden="true" />
+                    <span className="mobile:hidden">Manage</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-[7px] text-[12px] font-[600] text-emerald-600 dark:text-emerald-400">
+                    <span className="h-[8px] w-[8px] rounded-full bg-emerald-500" />
+                    <span className="mobile:hidden">Ready</span>
+                    <span className="sr-only">Ready to publish</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </article>
   );

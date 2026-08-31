@@ -6,8 +6,6 @@ export type ConnectionStatus =
   | 'disabled'
   | 'expiring';
 
-export type BrandPlatformStatus = ConnectionStatus | 'missing';
-
 export interface ConnectionStatusInput {
   disabled?: boolean;
   refreshNeeded?: boolean;
@@ -130,7 +128,7 @@ interface BrandPlatformRowBase {
   key: string;
   label: string;
   iconIdentifier: string;
-  status: BrandPlatformStatus;
+  status: ConnectionStatus;
 }
 
 export interface BrandPlatformRow<
@@ -143,7 +141,6 @@ export interface BrandStatusTotals {
   connected: number;
   attention: number;
   disabled: number;
-  missing: number;
   present: number;
 }
 
@@ -263,18 +260,22 @@ export function buildBrandPlatformRows<
     grouped.set(key, [...(grouped.get(key) ?? []), connection]);
   }
 
-  const coreRows = CORE_PLATFORM_DEFINITIONS.map((platform) => {
-    const platformConnections = grouped.get(platform.key) ?? [];
+  const coreRows = CORE_PLATFORM_DEFINITIONS.flatMap((platform) => {
+    const platformConnections = grouped.get(platform.key);
+    if (!platformConnections?.length) {
+      return [];
+    }
+
     grouped.delete(platform.key);
-    return {
-      key: platform.key,
-      label: platform.label,
-      iconIdentifier: platform.iconIdentifier,
-      connections: platformConnections,
-      status: platformConnections.length
-        ? getAggregateStatus(platformConnections)
-        : 'missing',
-    } satisfies BrandPlatformRow<TConnection>;
+    return [
+      {
+        key: platform.key,
+        label: platform.label,
+        iconIdentifier: platform.iconIdentifier,
+        connections: platformConnections,
+        status: getAggregateStatus(platformConnections),
+      } satisfies BrandPlatformRow<TConnection>,
+    ];
   });
 
   const additionalRows = [...grouped.entries()]
@@ -295,23 +296,19 @@ export function getBrandStatusTotals(
 ): BrandStatusTotals {
   return rows.reduce<BrandStatusTotals>(
     (totals, row) => {
-      if (row.status !== 'missing') {
-        totals.present += 1;
-      }
+      totals.present += 1;
 
       if (row.status === 'connected') {
         totals.connected += 1;
       } else if (row.status === 'reconnect' || row.status === 'expiring') {
         totals.attention += 1;
-      } else if (row.status === 'disabled') {
-        totals.disabled += 1;
       } else {
-        totals.missing += 1;
+        totals.disabled += 1;
       }
 
       return totals;
     },
-    { connected: 0, attention: 0, disabled: 0, missing: 0, present: 0 }
+    { connected: 0, attention: 0, disabled: 0, present: 0 }
   );
 }
 
