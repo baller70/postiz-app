@@ -35,10 +35,7 @@ const TrendIndicator: FC<{ value: number; average?: boolean }> = ({
         fill="none"
         className={isPositive ? '' : 'rotate-180'}
       >
-        <path
-          d="M6 2.5L10 7.5H2L6 2.5Z"
-          fill="currentColor"
-        />
+        <path d="M6 2.5L10 7.5H2L6 2.5Z" fill="currentColor" />
       </svg>
       <span>
         {displayValue}
@@ -87,7 +84,10 @@ const AnalyticsCard: FC<{
             </span>
           </div>
           {item.percentageChange !== undefined && (
-            <TrendIndicator value={item.percentageChange} average={item.average} />
+            <TrendIndicator
+              value={item.percentageChange}
+              average={item.average}
+            />
           )}
         </div>
 
@@ -97,7 +97,11 @@ const AnalyticsCard: FC<{
             {/* Chart */}
             <div className="flex-1 px-[12px] py-[8px]">
               <div className="h-[120px] relative">
-                <ChartSocial data={item.data} color={color} key={`chart-${index}`} />
+                <ChartSocial
+                  data={item.data}
+                  color={color}
+                  key={`chart-${index}`}
+                />
               </div>
             </div>
 
@@ -121,7 +125,7 @@ const AnalyticsCard: FC<{
   );
 };
 
-const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
+const RefreshRequiredState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
   const t = useT();
 
   return (
@@ -143,7 +147,7 @@ const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
       <p className="text-[15px] text-newTableText text-center mb-[12px]">
         {t(
           'this_channel_needs_to_be_refreshed',
-          'This channel needs to be refreshed to display analytics'
+          'This channel connection has expired. Reconnect it to continue.'
         )}
       </p>
       <button
@@ -161,8 +165,39 @@ const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
           <path d="M23 4v6h-6M1 20v-6h6" />
           <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
         </svg>
-        {t('refresh_channel', 'Refresh Channel')}
+        {t('refresh_channel', 'Reconnect Channel')}
       </button>
+    </div>
+  );
+};
+
+const NoAnalyticsState: FC = () => {
+  const t = useT();
+
+  return (
+    <div className="col-span-full flex flex-col items-center justify-center py-[48px] px-[24px] bg-newTableHeader border border-newTableBorder rounded-[12px]">
+      <div className="w-[48px] h-[48px] mb-[16px] rounded-full bg-[#32d583]/10 flex items-center justify-center">
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="text-[#32d583]"
+        >
+          <path d="M4 19V9M10 19V5M16 19v-7M22 19V3" />
+        </svg>
+      </div>
+      <p className="text-[15px] font-medium text-newTableText text-center mb-[4px]">
+        {t('channel_connected', 'Channel connected')}
+      </p>
+      <p className="text-[14px] text-newTableText/70 text-center">
+        {t(
+          'no_analytics_for_period',
+          'No analytics data is available for the selected period.'
+        )}
+      </p>
     </div>
   );
 };
@@ -219,8 +254,10 @@ export const RenderAnalytics: FC<{
   const totals = useMemo(() => {
     return data?.map((p: AnalyticsDataItem) => {
       const value =
-        (p?.data.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0) || 0) /
-        (p.average ? p.data.length : 1);
+        (p?.data.reduce(
+          (acc: number, curr: { total: number }) => acc + curr.total,
+          0
+        ) || 0) / (p.average ? p.data.length : 1);
       if (p.average) {
         return value.toFixed(2) + '%';
       }
@@ -238,17 +275,19 @@ export const RenderAnalytics: FC<{
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
-      {data?.length === 0 && (
-        <EmptyState onRefresh={refreshChannel(integration as any)} />
+      {integration.refreshNeeded && (
+        <RefreshRequiredState onRefresh={refreshChannel(integration as any)} />
       )}
-      {data?.map((item: AnalyticsDataItem, index: number) => (
-        <AnalyticsCard
-          key={`analytics-${index}`}
-          item={item}
-          total={totals[index]}
-          index={index}
-        />
-      ))}
+      {!integration.refreshNeeded && data?.length === 0 && <NoAnalyticsState />}
+      {!integration.refreshNeeded &&
+        data?.map((item: AnalyticsDataItem, index: number) => (
+          <AnalyticsCard
+            key={`analytics-${index}`}
+            item={item}
+            total={totals[index]}
+            index={index}
+          />
+        ))}
     </div>
   );
 };
