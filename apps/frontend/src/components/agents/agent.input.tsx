@@ -13,7 +13,13 @@ export const Input = ({
   onUpload,
   hideStopButton = false,
   onChange,
-}: InputProps & { onChange: (value: string) => void }) => {
+  canSendEmpty = false,
+  isSendBlocked = false,
+}: InputProps & {
+  onChange: (value: string) => void;
+  canSendEmpty?: boolean;
+  isSendBlocked?: boolean;
+}) => {
   const context = useChatContext();
   const copilotContext = useCopilotContext();
   const showPoweredBy = !copilotContext.copilotApiConfig?.publicApiKey;
@@ -55,8 +61,19 @@ export const Input = ({
       interruptEvent?.name === 'LangGraphInterruptEvent' &&
       !interruptEvent?.response;
 
-    return !isInProgress && text.trim().length > 0 && !interruptInProgress;
-  }, [copilotContext.langGraphInterruptAction?.event, isInProgress, text]);
+    return (
+      !isInProgress &&
+      !isSendBlocked &&
+      (text.trim().length > 0 || canSendEmpty) &&
+      !interruptInProgress
+    );
+  }, [
+    canSendEmpty,
+    copilotContext.langGraphInterruptAction?.event,
+    isInProgress,
+    isSendBlocked,
+    text,
+  ]);
 
   const canStop = useMemo(() => {
     return isInProgress && !hideStopButton;

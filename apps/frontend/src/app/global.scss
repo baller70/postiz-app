@@ -713,11 +713,70 @@ html[dir='rtl'] [dir='ltr'] {
 
 .agent {
   .copilotKitInputContainer {
-    padding: 0 24px !important;
+    padding: 8px 16px 14px !important;
+    background: var(--new-bgColorInner) !important;
+    border-radius: 0 !important;
   }
 
   .copilotKitInput {
     width: 100% !important;
+    max-width: 920px;
+    min-height: 106px;
+    border-radius: 8px;
+    border-color: var(--new-border);
+    background: var(--new-bgColor);
+  }
+}
+
+.agent-composer {
+  .copilotKitChat {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .copilotKitMessages {
+    min-height: 0;
+    background: var(--new-bgColorInner);
+  }
+
+  .copilotKitMessagesContainer {
+    width: 100%;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 20px 24px;
+  }
+
+  .copilotKitMessagesFooter {
+    width: 100%;
+    max-width: 920px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+
+  .agent-draft {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .agent {
+    .copilotKitInputContainer {
+      padding: 8px 12px 12px !important;
+    }
+
+    .copilotKitInput {
+      min-height: 92px;
+    }
+  }
+
+  .agent-composer {
+    .copilotKitMessagesContainer {
+      padding: 16px 14px;
+    }
+
+    .copilotKitMessagesFooter {
+      padding-inline: 14px;
+    }
   }
 }
 .rm-bg .b2 {

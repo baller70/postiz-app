@@ -3,273 +3,484 @@
 import React, {
   createContext,
   FC,
+  ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useState,
-  ReactNode,
 } from 'react';
 import clsx from 'clsx';
-import useCookie from 'react-use-cookie';
 import useSWR from 'swr';
-import { orderBy } from 'lodash';
-import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import { useWaitForClass } from '@gitroom/helpers/utils/use.wait.for.class';
-import { MultiMediaComponent } from '@gitroom/frontend/components/media/media.component';
-import { Integration } from '@prisma/client';
 import Link from 'next/link';
-import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import {
+  CheckmarkIcon,
+  CloseIcon,
+  DelayIcon,
+  GlobalIcon,
+  PlusIcon,
+} from '@gitroom/frontend/components/ui/icons';
+import {
+  AgentIntegration,
+  BrandGroup,
+  formatPlatformName,
+  getBrandSelectionState,
+  groupIntegrationsByBrand,
+  isIntegrationSelectable,
+  toggleBrandSelection,
+  toggleIntegrationSelection,
+} from '@gitroom/frontend/components/agents/agent.composer.utils';
 
-export const MediaPortal: FC<{
-  media: { path: string; id: string }[];
-  value: string;
-  setMedia: (event: {
-    target: {
-      name: string;
-      value?: {
-        id: string;
-        path: string;
-        alt?: string;
-        thumbnail?: string;
-        thumbnailTimestamp?: number;
-      }[];
-    };
-  }) => void;
-}> = ({ media, setMedia, value }) => {
-  const waitForClass = useWaitForClass('copilotKitMessages');
+type PropertiesContextValue = {
+  properties: AgentIntegration[];
+  integrations: AgentIntegration[];
+  groups: BrandGroup[];
+  isLoading: boolean;
+  error?: Error;
+  setProperties: React.Dispatch<React.SetStateAction<AgentIntegration[]>>;
+};
+
+export const PropertiesContext = createContext<PropertiesContextValue>({
+  properties: [],
+  integrations: [],
+  groups: [],
+  isLoading: false,
+  setProperties: () => undefined,
+});
+
+const SelectionMark: FC<{
+  selected: boolean;
+  partial?: boolean;
+  disabled?: boolean;
+}> = ({ selected, partial, disabled }) => (
+  <span
+    className={clsx(
+      'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border transition-colors',
+      selected || partial
+        ? 'border-btnPrimary bg-btnPrimary text-white'
+        : 'border-newBorder bg-newBgColor',
+      disabled && 'opacity-40'
+    )}
+    aria-hidden
+  >
+    {partial ? (
+      <span className="h-[2px] w-[8px] rounded-full bg-white" />
+    ) : selected ? (
+      <CheckmarkIcon className="h-[12px] w-[12px]" />
+    ) : null}
+  </span>
+);
+
+const AgentList: FC<{
+  className?: string;
+  onSelect?: () => void;
+}> = ({ className, onSelect }) => {
   const t = useT();
-  if (!waitForClass) return null;
+  const { properties, groups, isLoading, error, setProperties } =
+    React.useContext(PropertiesContext);
+
+  const selectedIds = useMemo(
+    () => new Set(properties.map((integration) => integration.id)),
+    [properties]
+  );
+
+  const toggleIntegration = useCallback(
+    (integration: AgentIntegration) => {
+      setProperties((current) =>
+        toggleIntegrationSelection(current, integration)
+      );
+    },
+    [setProperties]
+  );
+
+  const toggleBrand = useCallback(
+    (integrations: AgentIntegration[]) => {
+      setProperties((current) => toggleBrandSelection(current, integrations));
+    },
+    [setProperties]
+  );
+
   return (
-    <div className="pl-[14px] pr-[24px] whitespace-nowrap editor rm-bg">
-      <MultiMediaComponent
-        allData={[{ content: value }]}
-        text={value}
-        label={t('attachments', 'Attachments')}
-        description=""
-        value={media}
-        dummy={false}
-        name="image"
-        onChange={setMedia}
-        onOpen={() => {}}
-        onClose={() => {}}
-      />
-    </div>
+    <aside
+      className={clsx(
+        'min-h-0 w-full flex-col border-e border-newBorder bg-newBgColorInner xl:w-[276px]',
+        className
+      )}
+      aria-label={t('publishing_targets', 'Publishing targets')}
+    >
+      <div className="flex min-h-[68px] items-center justify-between border-b border-newBorder px-[18px]">
+        <div className="min-w-0">
+          <h2 className="truncate text-[16px] font-[600]">
+            {t('publishing_targets', 'Publishing targets')}
+          </h2>
+          <p className="mt-[2px] text-[12px] text-textItemBlur">
+            {properties.length}{' '}
+            {properties.length === 1
+              ? t('channel_attached', 'channel attached')
+              : t('channels_attached', 'channels attached')}
+          </p>
+        </div>
+        {onSelect && (
+          <button
+            type="button"
+            onClick={onSelect}
+            className="flex h-[36px] w-[36px] items-center justify-center rounded-[6px] text-textItemBlur hover:bg-boxHover hover:text-newTextColor"
+            aria-label={t('close', 'Close')}
+          >
+            <CloseIcon className="h-[16px] w-[16px]" />
+          </button>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-[12px] py-[12px] scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+        {isLoading && (
+          <div className="px-[6px] py-[20px] text-[13px] text-textItemBlur">
+            {t('loading_channels', 'Loading channels...')}
+          </div>
+        )}
+        {error && (
+          <div className="px-[6px] py-[20px] text-[13px] text-red-400">
+            {t('channels_unavailable', 'Channels are unavailable')}
+          </div>
+        )}
+        {!isLoading && !error && groups.length === 0 && (
+          <div className="px-[6px] py-[20px] text-[13px] text-textItemBlur">
+            {t('no_channels', 'No channels connected')}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-[8px]">
+          {groups.map((group) => {
+            const selection = getBrandSelectionState(
+              properties,
+              group.integrations
+            );
+            const brandDisabled = selection.availableCount === 0;
+
+            return (
+              <section
+                key={group.id}
+                className="border-b border-newBorder pb-[8px] last:border-b-0"
+              >
+                <button
+                  type="button"
+                  className="flex min-h-[42px] w-full items-center gap-[9px] rounded-[6px] px-[6px] text-start hover:bg-boxHover disabled:cursor-not-allowed"
+                  onClick={() => toggleBrand(group.integrations)}
+                  disabled={brandDisabled}
+                  role="checkbox"
+                  aria-checked={
+                    selection.partiallySelected
+                      ? 'mixed'
+                      : selection.allSelected
+                  }
+                  aria-label={`${group.name}: ${selection.selectedCount} of ${selection.availableCount} attached`}
+                >
+                  <SelectionMark
+                    selected={selection.allSelected}
+                    partial={selection.partiallySelected}
+                    disabled={brandDisabled}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-[600]">
+                    {group.name}
+                  </span>
+                  <span className="text-[11px] text-textItemBlur">
+                    {selection.selectedCount}/{selection.availableCount}
+                  </span>
+                </button>
+
+                <div className="ms-[14px] border-s border-newBorder ps-[8px]">
+                  {group.integrations.map((integration) => {
+                    const selected = selectedIds.has(integration.id);
+                    const selectable = isIntegrationSelectable(integration);
+                    const platform = formatPlatformName(integration.identifier);
+
+                    return (
+                      <button
+                        type="button"
+                        key={integration.id}
+                        onClick={() => toggleIntegration(integration)}
+                        disabled={!selectable}
+                        className={clsx(
+                          'group flex min-h-[44px] w-full items-center gap-[8px] rounded-[6px] px-[6px] text-start transition-colors',
+                          selected
+                            ? 'bg-btnPrimary/10 text-newTextColor'
+                            : 'hover:bg-boxHover',
+                          !selectable && 'cursor-not-allowed opacity-50'
+                        )}
+                        aria-pressed={selected}
+                        title={
+                          selectable
+                            ? `${integration.name} - ${platform}`
+                            : `${integration.name} - reconnect required`
+                        }
+                      >
+                        <SelectionMark
+                          selected={selected}
+                          disabled={!selectable}
+                        />
+                        <span className="relative h-[30px] w-[30px] shrink-0">
+                          <ImageWithFallback
+                            fallbackSrc={`/icons/platforms/${integration.identifier}.png`}
+                            src={integration.picture || '/no-picture.jpg'}
+                            className="h-[30px] w-[30px] rounded-[6px] object-cover"
+                            alt=""
+                            width={30}
+                            height={30}
+                          />
+                          <SafeImage
+                            src={`/icons/platforms/${integration.identifier}.png`}
+                            className="absolute -bottom-[3px] -end-[3px] z-10 h-[14px] w-[14px] rounded-[4px] border border-fifth bg-newBgColorInner"
+                            alt=""
+                            width={14}
+                            height={14}
+                          />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] font-[500]">
+                            {platform}
+                          </span>
+                          <span className="block truncate text-[10px] text-textItemBlur">
+                            {selectable
+                              ? selected
+                                ? t('attached_to_draft', 'Attached to draft')
+                                : integration.name
+                              : t('reconnect_required', 'Reconnect required')}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </aside>
   );
 };
 
-export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
-  onChange,
-}) => {
+type Thread = {
+  id: string;
+  title: string;
+};
+
+const Threads: FC<{
+  className?: string;
+  onSelect?: () => void;
+}> = ({ className, onSelect }) => {
   const fetch = useFetch();
   const t = useT();
-  const [selected, setSelected] = useState([]);
+  const { id } = useParams<{ id: string }>();
+  const loadThreads = useCallback(async (path: string) => {
+    const response = await fetch(path);
+    if (!response.ok) {
+      throw new Error('Could not load conversations');
+    }
+    return (await response.json()) as { threads?: Thread[] };
+  }, []);
+  const { data, isLoading } = useSWR('/copilot/list', loadThreads);
 
-  const load = useCallback(async () => {
-    return (await (await fetch('/integrations/list')).json()).integrations;
+  return (
+    <aside
+      className={clsx(
+        'min-h-0 w-full flex-col border-s border-newBorder bg-newBgColorInner xl:w-[240px]',
+        className
+      )}
+      aria-label={t('conversation_history', 'Conversation history')}
+    >
+      <div className="flex min-h-[68px] items-center justify-between border-b border-newBorder px-[16px]">
+        <div>
+          <h2 className="text-[15px] font-[600]">{t('history', 'History')}</h2>
+          <p className="mt-[2px] text-[11px] text-textItemBlur">
+            {data?.threads?.length || 0} {t('conversations', 'conversations')}
+          </p>
+        </div>
+        {onSelect && (
+          <button
+            type="button"
+            onClick={onSelect}
+            className="flex h-[36px] w-[36px] items-center justify-center rounded-[6px] text-textItemBlur hover:bg-boxHover hover:text-newTextColor"
+            aria-label={t('close', 'Close')}
+          >
+            <CloseIcon className="h-[16px] w-[16px]" />
+          </button>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-[10px] py-[12px] scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+        <Link
+          href="/agents/new"
+          onClick={onSelect}
+          className="mb-[10px] flex min-h-[40px] items-center justify-center gap-[7px] rounded-[6px] bg-btnPrimary px-[12px] text-[13px] font-[600] text-white"
+        >
+          <PlusIcon className="h-[16px] w-[16px]" />
+          {t('new_chat', 'New chat')}
+        </Link>
+        {isLoading ? (
+          <div className="px-[8px] py-[16px] text-[12px] text-textItemBlur">
+            {t('loading_history', 'Loading history...')}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-[2px]">
+            {data?.threads?.map((thread) => (
+              <Link
+                className={clsx(
+                  'overflow-hidden text-ellipsis whitespace-nowrap rounded-[6px] px-[9px] py-[8px] text-[12px] text-textItemBlur hover:bg-boxHover hover:text-newTextColor',
+                  thread.id === id &&
+                    'bg-newBgColor text-newTextColor shadow-[inset_2px_0_0_var(--new-btn-text)]'
+                )}
+                href={`/agents/${thread.id}`}
+                onClick={onSelect}
+                key={thread.id}
+                title={thread.title}
+              >
+                {thread.title}
+              </Link>
+            ))}
+            {!data?.threads?.length && (
+              <div className="px-[8px] py-[16px] text-[12px] text-textItemBlur">
+                {t('no_conversations', 'No conversations yet')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+};
+
+export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
+  const fetch = useFetch();
+  const t = useT();
+  const [properties, setProperties] = useState<AgentIntegration[]>([]);
+  const [mobilePanel, setMobilePanel] = useState<'targets' | 'history' | null>(
+    null
+  );
+
+  const loadIntegrations = useCallback(async (path: string) => {
+    const response = await fetch(path);
+    if (!response.ok) {
+      throw new Error('Could not load channel integrations');
+    }
+    return ((await response.json()).integrations || []) as AgentIntegration[];
   }, []);
 
-  const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
-
-  const { data } = useSWR('integrations', load, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-    revalidateOnMount: true,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-    fallbackData: [],
+  const {
+    data: integrations = [],
+    isLoading,
+    error,
+  } = useSWR('/integrations/list', loadIntegrations, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
   });
 
-  const setIntegration = useCallback(
-    (integration: Integration) => () => {
-      if (selected.some((p) => p.id === integration.id)) {
-        onChange(selected.filter((p) => p.id !== integration.id));
-        setSelected(selected.filter((p) => p.id !== integration.id));
-      } else {
-        onChange([...selected, integration]);
-        setSelected([...selected, integration]);
-      }
-    },
-    [selected]
-  );
-
-  const sortedIntegrations = useMemo(() => {
-    return orderBy(
-      data || [],
-      ['type', 'disabled', 'identifier'],
-      ['desc', 'asc', 'asc']
+  useEffect(() => {
+    setProperties((current) =>
+      current
+        .map((selected) =>
+          integrations.find((integration) => integration.id === selected.id)
+        )
+        .filter(
+          (integration): integration is AgentIntegration =>
+            !!integration && isIntegrationSelectable(integration)
+        )
     );
-  }, [data]);
+  }, [integrations]);
+
+  const groups = useMemo(
+    () => groupIntegrationsByBrand(integrations),
+    [integrations]
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      properties,
+      integrations,
+      groups,
+      isLoading,
+      error,
+      setProperties,
+    }),
+    [properties, integrations, groups, isLoading, error]
+  );
 
   return (
-    <div
-      className={clsx(
-        'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
-      )}
-    >
-      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-        <div className="flex items-center">
-          <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500] mb-[15px]">
-            {t('select_channels', 'Select Channels')}
-          </h2>
-          <div
-            onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-            className="-mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="7"
-              height="13"
-              viewBox="0 0 7 13"
-              fill="none"
+    <PropertiesContext.Provider value={contextValue}>
+      <div className="absolute inset-0 flex min-h-0 min-w-0 overflow-hidden bg-newBgLineColor">
+        <AgentList className="hidden xl:flex" />
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-newBgColorInner">
+          <div className="flex min-h-[49px] items-center gap-[8px] border-b border-newBorder px-[12px] xl:hidden">
+            <button
+              type="button"
+              onClick={() =>
+                setMobilePanel((current) =>
+                  current === 'targets' ? null : 'targets'
+                )
+              }
+              className={clsx(
+                'flex h-[34px] items-center gap-[7px] rounded-[6px] px-[10px] text-[12px] font-[600]',
+                mobilePanel === 'targets'
+                  ? 'bg-btnPrimary text-white'
+                  : 'bg-newBgColor text-newTextColor'
+              )}
+              aria-expanded={mobilePanel === 'targets'}
             >
-              <path
-                d="M6 11.5L1 6.5L6 1.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+              <GlobalIcon className="h-[16px] w-[16px]" />
+              {t('targets', 'Targets')}
+              <span className="rounded-[4px] bg-black/15 px-[5px] py-[1px] text-[10px]">
+                {properties.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setMobilePanel((current) =>
+                  current === 'history' ? null : 'history'
+                )
+              }
+              className={clsx(
+                'flex h-[34px] items-center gap-[7px] rounded-[6px] px-[10px] text-[12px] font-[600]',
+                mobilePanel === 'history'
+                  ? 'bg-btnPrimary text-white'
+                  : 'bg-newBgColor text-newTextColor'
+              )}
+              aria-expanded={mobilePanel === 'history'}
+            >
+              <DelayIcon className="h-[16px] w-[16px]" />
+              {t('history', 'History')}
+            </button>
           </div>
-        </div>
-        <div className={clsx('flex flex-col gap-[15px]')}>
-          {sortedIntegrations.map((integration, index) => (
-            <div
-              onClick={setIntegration(integration)}
-              key={integration.id}
-              className={clsx(
-                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] hover:opacity-100 cursor-pointer',
-                !selected.some((p) => p.id === integration.id) && 'opacity-20'
+
+          {mobilePanel && (
+            <div className="absolute inset-x-0 bottom-0 top-[49px] z-40 flex bg-black/25 xl:hidden">
+              {mobilePanel === 'targets' ? (
+                <AgentList
+                  className="flex max-w-[340px] shadow-xl"
+                  onSelect={() => setMobilePanel(null)}
+                />
+              ) : (
+                <Threads
+                  className="ms-auto flex max-w-[320px] shadow-xl"
+                  onSelect={() => setMobilePanel(null)}
+                />
               )}
-            >
-              <div
-                className={clsx(
-                  'relative rounded-full flex justify-center items-center gap-[6px]',
-                  integration.disabled && 'opacity-50'
-                )}
-              >
-                {(integration.inBetweenSteps || integration.refreshNeeded) && (
-                  <div className="absolute start-0 top-0 w-[39px] h-[46px] cursor-pointer">
-                    <div className="bg-red-500 w-[15px] h-[15px] rounded-full start-0 -top-[5px] absolute z-[200] text-[10px] flex justify-center items-center">
-                      !
-                    </div>
-                    <div className="bg-primary/60 w-[39px] h-[46px] start-0 top-0 absolute rounded-full z-[199]" />
-                  </div>
-                )}
-                <div className="h-full w-[4px] -ms-[12px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity">
-                  <SVGLine />
-                </div>
-                <ImageWithFallback
-                  fallbackSrc={`/icons/platforms/${integration.identifier}.png`}
-                  src={integration.picture}
-                  className="rounded-[8px]"
-                  alt={integration.identifier}
-                  width={36}
-                  height={36}
-                />
-                <SafeImage
-                  src={`/icons/platforms/${integration.identifier}.png`}
-                  className="rounded-[8px] absolute z-10 bottom-[5px] -end-[5px] border border-fifth"
-                  alt={integration.identifier}
-                  width={18.41}
-                  height={18.41}
-                />
-              </div>
-              <div
-                className={clsx(
-                  'flex-1 whitespace-nowrap text-ellipsis overflow-hidden group-[.sidebar]:hidden',
-                  integration.disabled && 'opacity-50'
-                )}
-              >
-                {integration.name}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export const PropertiesContext = createContext({ properties: [] });
-export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
-  const [properties, setProperties] = useState([]);
-
-  return (
-    <PropertiesContext.Provider value={{ properties }}>
-      <AgentList onChange={setProperties} />
-      <div className="bg-newBgColorInner flex flex-1">{children}</div>
-      <Threads />
-    </PropertiesContext.Provider>
-  );
-};
-
-const Threads: FC = () => {
-  const fetch = useFetch();
-  const router = useRouter();
-  const pathname = usePathname();
-  const t = useT();
-  const threads = useCallback(async () => {
-    return (await fetch('/copilot/list')).json();
-  }, []);
-  const { id } = useParams<{ id: string }>();
-
-  const { data } = useSWR('threads', threads);
-
-  return (
-    <div
-      className={clsx(
-        'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        'w-[260px]'
-      )}
-    >
-      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-        <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px]">
-          <Link
-            href={`/agents`}
-            className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="21"
-              height="20"
-              viewBox="0 0 21 20"
-              fill="none"
-              className="min-w-[21px] min-h-[20px]"
-            >
-              <path
-                d="M10.5001 4.16699V15.8337M4.66675 10.0003H16.3334"
-                stroke="white"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <button
+                type="button"
+                className="min-w-[24px] flex-1 cursor-default"
+                aria-label={t('close', 'Close')}
+                onClick={() => setMobilePanel(null)}
               />
-            </svg>
-            <div className="flex-1 text-start text-[16px] group-[.sidebar]:hidden">
-              {t('start_a_new_chat', 'Start a new chat')}
             </div>
-          </Link>
+          )}
+
+          {children}
         </div>
-        <div className="flex flex-col gap-[1px]">
-          {data?.threads?.map((p: any) => (
-            <Link
-              className={clsx(
-                'overflow-ellipsis overflow-hidden whitespace-nowrap hover:bg-newBgColor px-[10px] py-[6px] rounded-[10px] cursor-pointer',
-                p.id === id && 'bg-newBgColor'
-              )}
-              href={`/agents/${p.id}`}
-              key={p.id}
-            >
-              {p.title}
-            </Link>
-          ))}
-        </div>
+        <Threads className="hidden xl:flex" />
       </div>
-    </div>
+    </PropertiesContext.Provider>
   );
 };
