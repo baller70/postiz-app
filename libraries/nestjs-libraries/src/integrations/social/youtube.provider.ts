@@ -414,15 +414,86 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   async post(
     id: string,
     accessToken: string,
-    postDetails: PostDetails[]
+    postDetails: PostDetails<YoutubeSettingsDto>[]
   ): Promise<PostResponse[]> {
     const [firstPost, ...comments] = postDetails;
+    const { settings } = firstPost;
+
+    // Zernio account IDs are Mongo-style 24-character hex strings. Native
+    // YouTube channel IDs do not match this shape, so their behavior is kept
+    // unchanged below.
+    if (/^[a-f0-9]{24}$/i.test(id)) {
+      const apiKey = process.env.ZERNIO_API_KEY;
+      if (!apiKey) {
+        throw new Error('ZERNIO_API_KEY is required for this YouTube channel');
+      }
+
+      const video = firstPost.media?.[0];
+      const zernioBody: Record<string, unknown> = {
+        content: firstPost.message,
+        mediaItems: [
+          {
+            type: 'video',
+            url: video?.path,
+            ...(settings?.thumbnail?.path
+              ? { thumbnail: settings.thumbnail.path }
+              : {}),
+          },
+        ],
+        platforms: [
+          {
+            platform: 'youtube',
+            accountId: id,
+            platformSpecificData: {
+              title: settings.title,
+              visibility: settings.type,
+              madeForKids: settings.selfDeclaredMadeForKids === 'yes',
+            },
+          },
+        ],
+        publishNow: true,
+        ...(settings?.tags?.length
+          ? { tags: settings.tags.map((tag) => tag.label) }
+          : {}),
+      };
+
+      const zernioResponse = await fetch('https://zernio.com/api/v1/posts', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'x-request-id': firstPost.id,
+        },
+        body: JSON.stringify(zernioBody),
+      });
+      const zernioData = await zernioResponse.json().catch(() => ({}));
+
+      if (!zernioResponse.ok) {
+        const message =
+          typeof zernioData?.error === 'string'
+            ? zernioData.error
+            : zernioResponse.statusText || 'Publishing failed';
+        throw new Error(`Zernio YouTube: ${message}`);
+      }
+
+      const zernioPost = zernioData?.post || zernioData?.existingPost;
+      const target = zernioPost?.platforms?.find(
+        (platform: any) => platform.platform === 'youtube'
+      );
+
+      return [
+        {
+          id: firstPost.id,
+          postId: zernioPost?._id || zernioData?._id || '',
+          releaseURL: target?.platformPostUrl || '',
+          status: 'success',
+        },
+      ];
+    }
 
     const { client, youtube } = clientAndYoutube();
     client.setCredentials({ access_token: accessToken });
     const youtubeClient = youtube(client);
-
-    const { settings }: { settings: YoutubeSettingsDto } = firstPost;
 
     const response = await axios({
       url: firstPost?.media?.[0]?.path,
