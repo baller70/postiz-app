@@ -1,12 +1,20 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
+import { OrganizeMediaDto } from '@gitroom/nestjs-libraries/dtos/media/organize.media.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class MediaRepository {
   constructor(private _media: PrismaRepository<'media'>) {}
 
-  saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
+  saveFile(
+    org: string,
+    fileName: string,
+    filePath: string,
+    originalName?: string,
+    brand?: string
+  ) {
     return this._media.model.media.create({
       data: {
         organization: {
@@ -17,6 +25,7 @@ export class MediaRepository {
         name: fileName,
         path: filePath,
         originalName: originalName || null,
+        brand: brand?.trim() || null,
       },
       select: {
         id: true,
@@ -25,6 +34,8 @@ export class MediaRepository {
         path: true,
         thumbnail: true,
         alt: true,
+        brand: true,
+        tags: true,
       },
     });
   }
@@ -68,39 +79,26 @@ export class MediaRepository {
         thumbnail: true,
         path: true,
         thumbnailTimestamp: true,
+        brand: true,
+        tags: true,
       },
     });
   }
 
-  async getMedia(org: string, page: number, search?: string) {
-    const pageNum = (page || 1) - 1;
-    const trimmedSearch = search?.trim();
-    const searchFilter = trimmedSearch
-      ? {
-          originalName: {
-            contains: trimmedSearch,
-            mode: 'insensitive' as const,
-          },
-        }
-      : {};
-    const query = {
+  organizeMedia(org: string, id: string, data: OrganizeMediaDto) {
+    const tags = Array.from(
+      new Set(data.tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))
+    );
+
+    return this._media.model.media.update({
       where: {
-        organization: {
-          id: org,
-        },
-        deletedAt: null,
-        ...searchFilter,
-      },
-    };
-    const pages = Math.ceil((await this._media.model.media.count(query)) / 18);
-    const results = await this._media.model.media.findMany({
-      where: {
+        id,
         organizationId: org,
         deletedAt: null,
-        ...searchFilter,
       },
-      orderBy: {
-        createdAt: 'desc',
+      data: {
+        brand: data.brand?.trim() || null,
+        tags,
       },
       select: {
         id: true,
@@ -110,14 +108,101 @@ export class MediaRepository {
         thumbnail: true,
         alt: true,
         thumbnailTimestamp: true,
+        brand: true,
+        tags: true,
       },
-      skip: pageNum * 18,
-      take: 18,
     });
+  }
+
+  async getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    brand?: string,
+    tag?: string
+  ) {
+    const pageNum = Math.max(0, Number(page || 1) - 1);
+    const trimmedSearch = search?.trim();
+    const trimmedTag = tag?.trim().toLowerCase();
+    const where: Prisma.MediaWhereInput = {
+      organizationId: org,
+      deletedAt: null,
+      ...(brand === '__unfiled__'
+        ? { brand: null }
+        : brand
+        ? { brand: { equals: brand, mode: 'insensitive' } }
+        : {}),
+      ...(trimmedTag ? { tags: { has: trimmedTag } } : {}),
+      ...(trimmedSearch
+        ? {
+            OR: [
+              {
+                originalName: {
+                  contains: trimmedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                name: {
+                  contains: trimmedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              { tags: { has: trimmedSearch.toLowerCase() } },
+            ],
+          }
+        : {}),
+    };
+    const summaryWhere: Prisma.MediaWhereInput = {
+      organizationId: org,
+      deletedAt: null,
+    };
+    const [filteredCount, total, folderCounts, results] = await Promise.all([
+      this._media.model.media.count({ where }),
+      this._media.model.media.count({ where: summaryWhere }),
+      this._media.model.media.groupBy({
+        by: ['brand'],
+        where: summaryWhere,
+        _count: { _all: true },
+      }),
+      this._media.model.media.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          name: true,
+          originalName: true,
+          path: true,
+          thumbnail: true,
+          alt: true,
+          thumbnailTimestamp: true,
+          brand: true,
+          tags: true,
+          createdAt: true,
+        },
+        skip: pageNum * 18,
+        take: 18,
+      }),
+    ]);
+    const pages = Math.ceil(filteredCount / 18);
 
     return {
       pages,
       results,
+      summary: {
+        total,
+        unfiled:
+          folderCounts.find((folder) => folder.brand === null)?._count._all ||
+          0,
+        brands: folderCounts
+          .filter((folder) => !!folder.brand)
+          .map((folder) => ({
+            name: folder.brand!,
+            count: folder._count._all,
+          })),
+      },
     };
   }
 }

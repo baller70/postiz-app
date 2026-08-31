@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -25,6 +26,7 @@ import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
 import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { VideoFunctionDto } from '@gitroom/nestjs-libraries/dtos/videos/video.function.dto';
+import { OrganizeMediaDto } from '@gitroom/nestjs-libraries/dtos/media/organize.media.dto';
 
 @ApiTags('Media')
 @Controller('/media')
@@ -89,7 +91,8 @@ export class MediaController {
   @UsePipes(new CustomFileValidationPipe())
   async uploadServer(
     @GetOrgFromRequest() org: Organization,
-    @UploadedFile() file: Express.Multer.File
+    @UploadedFile() file: Express.Multer.File,
+    @Body('brand') brand?: string
   ) {
     const originalName = file?.originalname || '';
     const uploadedFile = await this.storage.uploadFile(file);
@@ -97,7 +100,8 @@ export class MediaController {
       org.id,
       uploadedFile.originalname,
       uploadedFile.path,
-      originalName
+      originalName,
+      brand
     );
   }
 
@@ -106,7 +110,8 @@ export class MediaController {
     @GetOrgFromRequest() org: Organization,
     @Req() req: Request,
     @Body('name') name: string,
-    @Body('originalName') originalName: string
+    @Body('originalName') originalName: string,
+    @Body('brand') brand?: string
   ) {
     if (!name) {
       return false;
@@ -115,7 +120,8 @@ export class MediaController {
       org.id,
       name,
       process.env.CLOUDFLARE_BUCKET_URL + '/' + name,
-      originalName || undefined
+      originalName || undefined,
+      brand
     );
   }
 
@@ -127,13 +133,23 @@ export class MediaController {
     return this._mediaService.saveMediaInformation(org.id, body);
   }
 
+  @Put('/:id/organize')
+  organizeMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: OrganizeMediaDto
+  ) {
+    return this._mediaService.organizeMedia(org.id, id, body);
+  }
+
   @Post('/upload-simple')
   @UseInterceptors(FileInterceptor('file'))
   @UsePipes(new CustomFileValidationPipe())
   async uploadSimple(
     @GetOrgFromRequest() org: Organization,
     @UploadedFile('file') file: Express.Multer.File,
-    @Body('preventSave') preventSave: string = 'false'
+    @Body('preventSave') preventSave: string = 'false',
+    @Body('brand') brand?: string
   ) {
     const originalName = file.originalname;
     const getFile = await this.storage.uploadFile(file);
@@ -147,7 +163,8 @@ export class MediaController {
       org.id,
       getFile.originalname,
       getFile.path,
-      originalName
+      originalName,
+      brand
     );
   }
 
@@ -166,13 +183,15 @@ export class MediaController {
     // @ts-ignore
     const name = upload.Location.split('/').pop();
     const originalName = req.body?.file?.name;
+    const brand = req.body?.file?.meta?.brand;
 
     const saveFile = await this._mediaService.saveFile(
       org.id,
       name,
       // @ts-ignore
       upload.Location,
-      originalName || undefined
+      originalName || undefined,
+      brand
     );
 
     res.status(200).json({ ...upload, saved: saveFile });
@@ -182,9 +201,11 @@ export class MediaController {
   getMedia(
     @GetOrgFromRequest() org: Organization,
     @Query('page') page: number,
-    @Query('search') search?: string
+    @Query('search') search?: string,
+    @Query('brand') brand?: string,
+    @Query('tag') tag?: string
   ) {
-    return this._mediaService.getMedia(org.id, page, search);
+    return this._mediaService.getMedia(org.id, page, search, brand, tag);
   }
 
   @Get('/video-options')
@@ -193,10 +214,12 @@ export class MediaController {
   }
 
   @Post('/video/function')
-  videoFunction(
-    @Body() body: VideoFunctionDto
-  ) {
-    return this._mediaService.videoFunction(body.identifier, body.functionName, body.params);
+  videoFunction(@Body() body: VideoFunctionDto) {
+    return this._mediaService.videoFunction(
+      body.identifier,
+      body.functionName,
+      body.params
+    );
   }
 
   @Get('/generate-video/:type/allowed')

@@ -220,6 +220,8 @@ model Media {
   thumbnail          String?
   alt                String?
   thumbnailTimestamp Int?
+  brand              String?
+  tags               String[]            @default([])
   organization       Organization        @relation(fields: [organizationId], references: [id])
   agencies           SocialMediaAgency[]
   userPicture        User[]
@@ -227,6 +229,7 @@ model Media {
 
   @@index([name])
   @@index([organizationId])
+  @@index([organizationId, brand])
   @@index([type])
 }
 

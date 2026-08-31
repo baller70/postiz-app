@@ -48,12 +48,23 @@ import {
   DesignMediaIcon,
   VerticalDividerIcon,
   NoMediaIcon,
+  ExpandIcon,
+  TagIcon,
+  CloseIcon,
 } from '@gitroom/frontend/components/ui/icons';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useDebounce } from 'use-debounce';
 import { ResilientMediaImage } from '@gitroom/frontend/components/media/resilient.media.image';
+import {
+  ALL_MEDIA,
+  MediaBrandFolder,
+  MediaBrandSource,
+  UNFILED_MEDIA,
+  deriveMediaBrandFolders,
+  uploadBrandForFolder,
+} from '@gitroom/frontend/components/media/media.brand.utils';
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
 );
@@ -201,6 +212,229 @@ export const showMediaBox = (
 };
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 1024; // 1 GB
+
+type OrganizedMedia = Media & {
+  brand?: string | null;
+  tags?: string[];
+};
+
+type MediaResponse = {
+  pages: number;
+  results: OrganizedMedia[];
+  summary?: {
+    total: number;
+    unfiled: number;
+    brands: { name: string; count: number }[];
+  };
+};
+
+const useMediaBrandSources = () => {
+  const fetch = useFetch();
+  const loadIntegrations = useCallback(async (path: string) => {
+    const response = await fetch(path);
+    if (!response.ok) {
+      throw new Error('Could not load integrations');
+    }
+    return ((await response.json()).integrations || []) as MediaBrandSource[];
+  }, []);
+
+  return useSWR('/integrations/list', loadIntegrations, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+  });
+};
+
+const FolderGlyph: FC<{ active?: boolean }> = ({ active }) => (
+  <span className="relative block h-[34px] w-[42px] shrink-0" aria-hidden>
+    <span
+      className={clsx(
+        'absolute start-[3px] top-0 h-[9px] w-[18px] rounded-t-[4px]',
+        active ? 'bg-btnPrimary' : 'bg-newTextColor/30'
+      )}
+    />
+    <span
+      className={clsx(
+        'absolute inset-x-0 bottom-0 h-[29px] rounded-[6px]',
+        active ? 'bg-btnPrimary' : 'bg-newTextColor/20'
+      )}
+    />
+  </span>
+);
+
+const MediaFolder: FC<{
+  active: boolean;
+  count: number;
+  label: string;
+  onClick: () => void;
+}> = ({ active, count, label, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={clsx(
+      'flex h-[74px] min-w-[168px] max-w-[210px] items-center gap-[11px] rounded-[8px] border px-[13px] text-start transition-colors',
+      active
+        ? 'border-btnPrimary bg-btnPrimary/10 text-newTextColor'
+        : 'border-newBorder bg-newBgColor hover:bg-boxHover'
+    )}
+  >
+    <FolderGlyph active={active} />
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-[12px] font-[600]">{label}</span>
+      <span className="mt-[2px] block text-[10px] text-textItemBlur">
+        {count} {count === 1 ? 'item' : 'items'}
+      </span>
+    </span>
+  </button>
+);
+
+const MediaOrganizer: FC<{
+  brands: MediaBrandFolder[];
+  media: OrganizedMedia;
+  onClose: () => void;
+  onSaved: () => void | Promise<void>;
+}> = ({ brands, media, onClose, onSaved }) => {
+  const fetch = useFetch();
+  const toaster = useToaster();
+  const [brand, setBrand] = useState(media.brand || '');
+  const [tags, setTags] = useState<string[]>(media.tags || []);
+  const [tagDraft, setTagDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const availableBrands = useMemo(() => {
+    if (!media.brand || brands.some((item) => item.name === media.brand)) {
+      return brands;
+    }
+    return [...brands, { id: media.brand, name: media.brand, count: 0 }];
+  }, [brands, media.brand]);
+
+  const addTags = useCallback((value: string) => {
+    const nextTags = value
+      .split(',')
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
+    setTags((current) =>
+      Array.from(new Set([...current, ...nextTags])).slice(0, 20)
+    );
+    setTagDraft('');
+  }, []);
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    try {
+      const finalTags = Array.from(
+        new Set([
+          ...tags,
+          ...tagDraft
+            .split(',')
+            .map((tag) => tag.trim().toLowerCase())
+            .filter(Boolean),
+        ])
+      ).slice(0, 20);
+      const response = await fetch(`/media/${media.id}/organize`, {
+        method: 'PUT',
+        body: JSON.stringify({ brand: brand || null, tags: finalTags }),
+      });
+      if (!response.ok) {
+        throw new Error('Could not organize media');
+      }
+      await onSaved();
+      toaster.show('Media organization saved', 'success');
+      onClose();
+    } catch {
+      toaster.show('Could not save media organization', 'warning');
+    } finally {
+      setSaving(false);
+    }
+  }, [brand, media.id, onClose, onSaved, tagDraft, tags]);
+
+  return (
+    <div className="flex flex-col gap-[20px] py-[6px]">
+      <label className="flex flex-col gap-[7px] text-[12px] font-[600]">
+        Brand folder
+        <select
+          value={brand}
+          onChange={(event) => setBrand(event.target.value)}
+          className="h-[44px] rounded-[7px] border border-newBorder bg-newBgColor px-[12px] text-[13px] font-[400] outline-none focus:border-btnPrimary"
+        >
+          <option value="">Unfiled</option>
+          {availableBrands.map((folder) => (
+            <option key={folder.id} value={folder.name}>
+              {folder.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex flex-col gap-[7px]">
+        <label
+          htmlFor={`media-tags-${media.id}`}
+          className="text-[12px] font-[600]"
+        >
+          Search tags
+        </label>
+        <div className="flex items-center gap-[7px] rounded-[7px] border border-newBorder bg-newBgColor px-[11px] focus-within:border-btnPrimary">
+          <TagIcon className="h-[16px] w-[16px] shrink-0 text-textItemBlur" />
+          <input
+            id={`media-tags-${media.id}`}
+            value={tagDraft}
+            onChange={(event) => setTagDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ',') {
+                event.preventDefault();
+                addTags(tagDraft);
+              }
+            }}
+            onBlur={() => addTags(tagDraft)}
+            placeholder="Add a tag and press Enter"
+            className="h-[42px] min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+          />
+        </div>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-[6px] pt-[3px]">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="flex h-[28px] items-center gap-[5px] rounded-[5px] bg-newBgColor px-[8px] text-[11px]"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTags((current) => current.filter((item) => item !== tag))
+                  }
+                  aria-label={`Remove ${tag}`}
+                  className="text-textItemBlur hover:text-newTextColor"
+                >
+                  <CloseIcon className="h-[13px] w-[13px]" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-[8px] border-t border-newBorder pt-[16px]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-[42px] rounded-[7px] border border-newBorder px-[15px] text-[12px] font-[600]"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="h-[42px] rounded-[7px] bg-btnPrimary px-[17px] text-[12px] font-[600] text-white disabled:cursor-wait disabled:opacity-60"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const MediaBox: FC<{
   setMedia: (params: { id: string; path: string }[]) => void;
   standalone?: boolean;
@@ -209,24 +443,38 @@ export const MediaBox: FC<{
 }> = ({ type, standalone, setMedia }) => {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
+  const [activeFolder, setActiveFolder] = useState(ALL_MEDIA);
+  const [activeTag, setActiveTag] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
   const fetch = useFetch();
   const modals = useModals();
   const toaster = useToaster();
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch]);
+  }, [activeFolder, activeTag, debouncedSearch]);
   const loadMedia = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page + 1) });
     if (debouncedSearch.trim()) {
       params.set('search', debouncedSearch.trim());
     }
+    if (activeFolder !== ALL_MEDIA) {
+      params.set('brand', activeFolder);
+    }
+    if (activeTag) {
+      params.set('tag', activeTag);
+    }
     return (await fetch(`/media?${params.toString()}`)).json();
-  }, [page, debouncedSearch]);
-  const { data, mutate, isLoading } = useSWR(
-    `get-media-${page}-${debouncedSearch}`,
+  }, [activeFolder, activeTag, page, debouncedSearch]);
+  const { data, mutate, isLoading } = useSWR<MediaResponse>(
+    `get-media-${page}-${activeFolder}-${activeTag}-${debouncedSearch}`,
     loadMedia
   );
+  const { data: brandSources = [] } = useMediaBrandSources();
+  const brandFolders = useMemo(
+    () => deriveMediaBrandFolders(brandSources, data?.summary?.brands || []),
+    [brandSources, data?.summary?.brands]
+  );
+  const uploadBrand = uploadBrandForFolder(activeFolder);
   const [selected, setSelected] = useState([]);
   const t = useT();
   const uploaderRef = useRef<any>(null);
@@ -294,11 +542,12 @@ export const MediaBox: FC<{
       }
 
       setLoading(true);
+      uppy.setMeta({ brand: uploadBrand });
 
       // @ts-ignore
       uppy.addFiles(files);
     },
-    [toaster, t]
+    [toaster, t, uploadBrand, uppy]
   );
 
   const dragAndDrop = useCallback(
@@ -337,16 +586,17 @@ export const MediaBox: FC<{
       }
 
       setLoading(true);
+      uppy.setMeta({ brand: uploadBrand });
 
       for (const file of files) {
         uppy.addFile(file);
       }
     },
-    [toaster, t]
+    [toaster, t, uploadBrand, uppy]
   );
 
   const maximize = useCallback(
-    (media: Media) => async (e: any) => {
+    (media: OrganizedMedia) => async (e: any) => {
       e.stopPropagation();
       modals.openModal({
         title: '',
@@ -375,7 +625,7 @@ export const MediaBox: FC<{
   );
 
   const deleteImage = useCallback(
-    (media: Media) => async (e: any) => {
+    (media: OrganizedMedia) => async (e: any) => {
       e.stopPropagation();
       if (
         !(await deleteDialog(
@@ -395,6 +645,28 @@ export const MediaBox: FC<{
     [mutate]
   );
 
+  const organizeMedia = useCallback(
+    (media: OrganizedMedia) => (event: React.MouseEvent) => {
+      event.stopPropagation();
+      modals.openModal({
+        title: t('organize_media', 'Organize media'),
+        askClose: false,
+        size: '520px',
+        children: (close) => (
+          <MediaOrganizer
+            brands={brandFolders}
+            media={media}
+            onClose={close}
+            onSaved={async () => {
+              await mutate();
+            }}
+          />
+        ),
+      });
+    },
+    [brandFolders, modals, mutate, t]
+  );
+
   const btn = useMemo(() => {
     return (
       <button
@@ -409,30 +681,76 @@ export const MediaBox: FC<{
         ) : (
           <PlusIcon size={14} />
         )}
-        <div className={loading ? 'invisible' : undefined}>{t('upload', 'Upload')}</div>
+        <div className={loading ? 'invisible' : undefined}>
+          {t('upload', 'Upload')}
+        </div>
       </button>
     );
   }, [t, loading]);
 
+  const activeFolderLabel =
+    activeFolder === ALL_MEDIA
+      ? t('all_media', 'All media')
+      : activeFolder === UNFILED_MEDIA
+      ? t('unfiled', 'Unfiled')
+      : activeFolder;
+  const uploadFolderLabel = uploadBrand || t('unfiled', 'Unfiled');
+  const visibleMedia = useMemo(
+    () =>
+      (data?.results || []).filter((media) => {
+        if (type === 'video') {
+          return hasExtension(media.path, 'mp4');
+        }
+        if (type === 'image') {
+          return !hasExtension(media.path, 'mp4');
+        }
+        return true;
+      }),
+    [data?.results, type]
+  );
+
   return (
-    <DropFiles disabled={loading} className="flex flex-col flex-1" onDrop={dragAndDrop}>
-      <div className="flex flex-col flex-1">
-        <div
-          className={clsx(
-            'flex items-center gap-[12px]',
-            !isLoading &&
-              !data?.results?.length &&
-              !debouncedSearch &&
-              'hidden'
-          )}
-        >
-          <div className="flex-1">
+    <DropFiles
+      disabled={loading}
+      className="flex min-h-0 flex-1 flex-col"
+      onDrop={dragAndDrop}
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-[12px]">
+        <div className="flex max-w-full gap-[8px] overflow-x-auto pb-[3px]">
+          <MediaFolder
+            active={activeFolder === ALL_MEDIA}
+            count={data?.summary?.total || 0}
+            label={t('all_media', 'All media')}
+            onClick={() => setActiveFolder(ALL_MEDIA)}
+          />
+          <MediaFolder
+            active={activeFolder === UNFILED_MEDIA}
+            count={data?.summary?.unfiled || 0}
+            label={t('unfiled', 'Unfiled')}
+            onClick={() => setActiveFolder(UNFILED_MEDIA)}
+          />
+          {brandFolders.map((folder) => (
+            <MediaFolder
+              key={folder.id}
+              active={activeFolder === folder.name}
+              count={folder.count}
+              label={folder.name}
+              onClick={() => setActiveFolder(folder.name)}
+            />
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-[9px] lg:flex-row lg:items-center">
+          <div className="min-w-0 flex-1">
             <input
-              type="text"
+              type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('search_media_by_name', 'Search by file name')}
-              className="w-full h-[44px] px-[14px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#612BD3]"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t(
+                'search_media_and_tags',
+                'Search files or exact tags'
+              )}
+              className="h-[44px] w-full rounded-[8px] border border-newColColor bg-newBgColorInner px-[14px] text-[14px] outline-none focus:border-btnPrimary"
             />
           </div>
           <input
@@ -442,11 +760,32 @@ export const MediaBox: FC<{
             className="hidden"
             multiple={true}
           />
-          <div className="flex gap-[8px]">
+          <div className="flex flex-wrap items-center gap-[8px]">
+            <span className="max-w-[220px] truncate text-[11px] text-textItemBlur">
+              {t('uploads_to', 'Uploads to')}: {uploadFolderLabel}
+            </span>
             {btn}
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
         </div>
+
+        {activeTag && (
+          <div className="flex items-center gap-[7px]">
+            <span className="flex h-[30px] items-center gap-[6px] rounded-[6px] bg-btnPrimary/10 px-[9px] text-[11px] text-newTextColor">
+              <TagIcon className="h-[14px] w-[14px]" />
+              {activeTag}
+              <button
+                type="button"
+                onClick={() => setActiveTag('')}
+                aria-label={t('clear_tag_filter', 'Clear tag filter')}
+                className="text-textItemBlur hover:text-newTextColor"
+              >
+                <CloseIcon className="h-[13px] w-[13px]" />
+              </button>
+            </span>
+          </div>
+        )}
+
         <div className="w-full pointer-events-none relative mt-[5px] mb-[5px]">
           <div className="w-full h-[46px] overflow-hidden absolute left-0 bg-newBgColorInner uppyChange">
             <Dashboard
@@ -463,123 +802,85 @@ export const MediaBox: FC<{
           </div>
           <div className="w-full h-[46px] uppyChange" />
         </div>
-        <div
-          className={clsx(
-            'flex-1 relative',
-            !isLoading &&
-              !data?.results?.length &&
-              'bg-newTextColor/[0.02] rounded-[12px]'
-          )}
-        >
-          <div
-            className={clsx(
-              'absolute -left-[3px] -top-[3px] withp3 h-full overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner',
-              !isLoading &&
-                !data?.results?.length &&
-                'flex justify-center items-center gap-[20px] flex-col'
-            )}
-          >
-            {!isLoading && !data?.results?.length && (
-              <>
-                <NoMediaIcon />
-                <div className="text-[20px] font-[600]">
-                  {debouncedSearch
-                    ? t(
-                        'no_media_match_search',
-                        'No media matches your search'
-                      )
-                    : t(
-                        'you_dont_have_any_media_yet',
-                        "You don't have any media yet"
-                      )}
-                </div>
-                <div className="whitespace-pre-line text-newTextColor/[0.6] text-center">
-                  {t(
-                    'select_or_upload_pictures_max_1gb',
-                    'Select or upload pictures (maximum 1 GB per upload).'
-                  )}{' '}
-                  {'\n'}
-                  {t(
-                    'you_can_drag_drop_pictures',
-                    'You can also drag & drop pictures.'
-                  )}
-                </div>
-                <div className="forceChange flex gap-[8px]">
-                  {btn}
-                  <ThirdPartyMediaLibrary onImported={() => mutate()} />
-                </div>
-              </>
-            )}
-            {isLoading && (
-              <>
-                {[...new Array(16)].map((_, i) => (
-                  <div
-                    className={clsx(
-                      'px-[3px] py-[3px] float-left rounded-[6px] cursor-pointer w8-max aspect-square'
-                    )}
-                    key={i}
-                  >
-                    <div className="w-full h-full bg-newSep rounded-[6px] animate-pulse" />
-                  </div>
-                ))}
-              </>
-            )}
-            {data?.results
-              ?.filter((f: any) => {
-                if (type === 'video') {
-                  return hasExtension(f.path, 'mp4');
-                } else if (type === 'image') {
-                  return !hasExtension(f.path, 'mp4');
-                }
-                return true;
-              })
-              .map((media: any) => (
+        <div className="relative min-h-[240px] flex-1 overflow-y-auto rounded-[8px] scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner">
+          {isLoading && (
+            <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+              {[...new Array(12)].map((_, index) => (
                 <div
-                  className={clsx(
-                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max aspect-square',
-                    !standalone && 'cursor-pointer'
-                  )}
-                  key={media.id}
-                >
-                  <div
-                    className={clsx(
-                      'w-full h-full rounded-[6px] border-[4px] relative',
-                      !!selected.find((p) => p.id === media.id)
-                        ? 'border-[#612BD3]'
-                        : 'border-transparent'
-                    )}
+                  className="aspect-[4/5] animate-pulse rounded-[7px] bg-newSep"
+                  key={index}
+                />
+              ))}
+            </div>
+          )}
+
+          {!isLoading && visibleMedia.length === 0 && (
+            <div className="flex min-h-[240px] flex-col items-center justify-center gap-[13px] rounded-[8px] bg-newTextColor/[0.02] px-[20px] text-center">
+              <NoMediaIcon />
+              <div className="text-[17px] font-[600]">
+                {debouncedSearch || activeTag
+                  ? t(
+                      'no_media_match_filters',
+                      'No media matches these filters'
+                    )
+                  : activeFolder === ALL_MEDIA
+                  ? t('media_library_empty', 'Your media library is empty')
+                  : `${t('no_media_in', 'No media in')} ${activeFolderLabel}`}
+              </div>
+            </div>
+          )}
+
+          {!isLoading && visibleMedia.length > 0 && (
+            <div className="grid grid-cols-2 gap-[10px] pb-[4px] sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+              {visibleMedia.map((media) => {
+                const selectionIndex = selected.findIndex(
+                  (item: OrganizedMedia) => item.id === media.id
+                );
+                return (
+                  <article
+                    key={media.id}
                     onClick={addRemoveSelected(media)}
-                  >
-                    {!!selected.find((p: any) => p.id === media.id) ? (
-                      <div className="text-white flex z-[101] justify-center items-center text-[14px] font-[500] w-[24px] h-[24px] rounded-full bg-[#612BD3] absolute -bottom-[10px] -end-[10px]">
-                        {selected.findIndex((z: any) => z.id === media.id) + 1}
-                      </div>
-                    ) : (
-                      <DeleteCircleIcon
-                        className="cursor-pointer hidden z-[100] group-hover:block absolute -top-[5px] -end-[5px]"
-                        onClick={deleteImage(media)}
-                      />
+                    className={clsx(
+                      'group min-w-0 overflow-hidden rounded-[8px] border bg-newBgColor transition-colors',
+                      selectionIndex >= 0
+                        ? 'border-btnPrimary'
+                        : 'border-newBorder hover:border-newTextColor/30',
+                      !standalone && 'cursor-pointer'
                     )}
-                    <div className="absolute bottom-[10px] end-[10px] z-[100]">{media.originalName}</div>
-                    <div className="w-full h-full rounded-[6px] overflow-hidden relative">
-                      <div className="absolute z-[20] left-[50%] top-[50%] -translate-x-[50%] -translate-y-[50%]">
-                        <div
+                  >
+                    <div className="relative aspect-square overflow-hidden bg-newBgColorInner">
+                      {selectionIndex >= 0 && (
+                        <span className="absolute end-[7px] top-[7px] z-[30] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-btnPrimary text-[11px] font-[600] text-white">
+                          {selectionIndex + 1}
+                        </span>
+                      )}
+                      <div className="absolute start-[7px] top-[7px] z-[30] flex items-center gap-[5px] sm:hidden sm:group-hover:flex sm:group-focus-within:flex">
+                        <button
+                          type="button"
                           onClick={maximize(media)}
-                          className="cursor-pointer p-[4px] bg-black/40 hidden group-hover:block hover:scale-150 transition-all"
+                          title={t('preview', 'Preview')}
+                          className="flex h-[30px] w-[30px] items-center justify-center rounded-[6px] bg-black/75 text-white hover:bg-black"
                         >
-                          <svg
-                            width="30"
-                            height="30"
-                            viewBox="0 0 14 14"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
+                          <ExpandIcon className="h-[16px] w-[16px]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={organizeMedia(media)}
+                          title={t('organize_media', 'Organize media')}
+                          className="flex h-[30px] w-[30px] items-center justify-center rounded-[6px] bg-black/75 text-white hover:bg-black"
+                        >
+                          <TagIcon className="h-[15px] w-[15px]" />
+                        </button>
+                        {selectionIndex < 0 && (
+                          <button
+                            type="button"
+                            onClick={deleteImage(media)}
+                            title={t('delete', 'Delete')}
+                            className="flex h-[30px] w-[30px] items-center justify-center rounded-[6px] bg-black/75 text-white hover:bg-red-600"
                           >
-                            <path
-                              d="M2 9H0V14H5V12H2V9ZM0 5H2V2H5V0H0V5ZM12 12H9V14H14V9H12V12ZM9 0V2H12V5H14V0H9Z"
-                              fill="#F1F5F9"
-                            />
-                          </svg>
-                        </div>
+                            <DeleteCircleIcon className="h-[18px] w-[18px]" />
+                          </button>
+                        )}
                       </div>
                       {hasExtension(media.path, 'mp4') ? (
                         <VideoFrame url={mediaDirectory.set(media.path)} />
@@ -587,16 +888,51 @@ export const MediaBox: FC<{
                         <ResilientMediaImage
                           width="100%"
                           height="100%"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover"
                           src={mediaDirectory.set(media.path)}
-                          alt="media"
+                          alt={media.alt || media.originalName || 'Media'}
                         />
                       )}
                     </div>
-                  </div>
-                </div>
-              ))}
-          </div>
+                    <div className="flex min-h-[82px] flex-col gap-[7px] p-[9px]">
+                      <span
+                        className="truncate text-[11px] font-[600]"
+                        title={media.originalName || media.name}
+                      >
+                        {media.originalName || media.name}
+                      </span>
+                      <span className="w-fit max-w-full truncate rounded-[4px] bg-newBgColorInner px-[6px] py-[3px] text-[9px] text-textItemBlur">
+                        {media.brand || t('unfiled', 'Unfiled')}
+                      </span>
+                      {!!media.tags?.length && (
+                        <div className="flex max-w-full gap-[4px] overflow-hidden">
+                          {media.tags.slice(0, 2).map((tag) => (
+                            <button
+                              type="button"
+                              key={tag}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setActiveTag(tag);
+                              }}
+                              className="max-w-[90px] truncate rounded-[4px] bg-btnPrimary/10 px-[5px] py-[2px] text-[9px] text-newTextColor"
+                              title={tag}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                          {media.tags.length > 2 && (
+                            <span className="text-[9px] text-textItemBlur">
+                              +{media.tags.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
         {(data?.pages || 0) > 1 && (
           <Pagination
@@ -769,57 +1105,60 @@ export const MultiMediaComponent: FC<{
               handle=".dragging"
             >
               {currentMedia.map((media, index) => (
-                  <div key={media.id} className="cursor-pointer rounded-[5px] w-[40px] h-[40px] border-2 border-tableBorder relative flex transition-all">
-                    <DragHandleIcon className="z-[20] dragging absolute pe-[1px] pb-[3px] -start-[4px] -top-[4px] cursor-move" />
+                <div
+                  key={media.id}
+                  className="cursor-pointer rounded-[5px] w-[40px] h-[40px] border-2 border-tableBorder relative flex transition-all"
+                >
+                  <DragHandleIcon className="z-[20] dragging absolute pe-[1px] pb-[3px] -start-[4px] -top-[4px] cursor-move" />
 
-                    <div className="w-full h-full relative group">
-                      <div
-                        onClick={async () => {
-                          modals.openModal({
-                            title: t('media_settings', 'Media Settings'),
-                            children: (close) => (
-                              <MediaComponentInner
-                                media={media as any}
-                                onClose={close}
-                                onSelect={(value: any) => {
-                                  onChange({
-                                    target: {
-                                      name: 'upload',
-                                      value: currentMedia.map((p) => {
-                                        if (p.id === media.id) {
-                                          return {
-                                            ...p,
-                                            ...value,
-                                          };
-                                        }
-                                        return p;
-                                      }),
-                                    },
-                                  });
-                                }}
-                              />
-                            ),
-                          });
-                        }}
-                        className="absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-[9]"
-                      >
-                        <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
-                      </div>
-                      {hasExtension(media?.path, 'mp4') ? (
-                        <VideoFrame url={mediaDirectory.set(media?.path)} />
-                      ) : (
-                        <img
-                          className="w-full h-full object-cover rounded-[4px]"
-                          src={mediaDirectory.set(media?.path)}
-                        />
-                      )}
+                  <div className="w-full h-full relative group">
+                    <div
+                      onClick={async () => {
+                        modals.openModal({
+                          title: t('media_settings', 'Media Settings'),
+                          children: (close) => (
+                            <MediaComponentInner
+                              media={media as any}
+                              onClose={close}
+                              onSelect={(value: any) => {
+                                onChange({
+                                  target: {
+                                    name: 'upload',
+                                    value: currentMedia.map((p) => {
+                                      if (p.id === media.id) {
+                                        return {
+                                          ...p,
+                                          ...value,
+                                        };
+                                      }
+                                      return p;
+                                    }),
+                                  },
+                                });
+                              }}
+                            />
+                          ),
+                        });
+                      }}
+                      className="absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-[9]"
+                    >
+                      <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
                     </div>
-
-                    <CloseCircleIcon
-                      onClick={clearMedia(index)}
-                      className="absolute -end-[4px] -top-[4px] z-[20] rounded-full bg-white"
-                    />
+                    {hasExtension(media?.path, 'mp4') ? (
+                      <VideoFrame url={mediaDirectory.set(media?.path)} />
+                    ) : (
+                      <img
+                        className="w-full h-full object-cover rounded-[4px]"
+                        src={mediaDirectory.set(media?.path)}
+                      />
+                    )}
                   </div>
+
+                  <CloseCircleIcon
+                    onClick={clearMedia(index)}
+                    className="absolute -end-[4px] -top-[4px] z-[20] rounded-full bg-white"
+                  />
+                </div>
               ))}
             </ReactSortable>
           )}
