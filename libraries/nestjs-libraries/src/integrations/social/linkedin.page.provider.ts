@@ -12,6 +12,7 @@ import { Integration } from '@prisma/client';
 import { Plug } from '@gitroom/helpers/decorators/plug.decorator';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { AuthService } from '@gitroom/helpers/auth/auth.service';
 
 @Rules(
   'LinkedIn can have maximum one attachment when selecting video, when choosing a carousel on LinkedIn minimum amount of attachment must be two, and only pictures, if uploading a video, LinkedIn can have only one attachment'
@@ -36,6 +37,25 @@ export class LinkedinPageProvider
   ];
 
   override editor = 'normal' as const;
+
+  private usesZernioTransport(integration: Integration) {
+    if (!integration.customInstanceDetails) {
+      return false;
+    }
+
+    let details = integration.customInstanceDetails;
+    try {
+      details = AuthService.fixedDecryption(details);
+    } catch {
+      // Keep plaintext compatibility for records created before encryption.
+    }
+
+    try {
+      return JSON.parse(details)?.transport === 'zernio';
+    } catch {
+      return false;
+    }
+  }
 
   override async refreshToken(
     refresh_token: string
@@ -270,6 +290,63 @@ export class LinkedinPageProvider
     postDetails: PostDetails[],
     integration: Integration
   ): Promise<PostResponse[]> {
+    if (this.usesZernioTransport(integration)) {
+      if (!/^[a-f0-9]{24}$/i.test(id)) {
+        throw new Error('Invalid Zernio account ID for this LinkedIn Page');
+      }
+
+      const apiKey = process.env.ZERNIO_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          'ZERNIO_API_KEY is required for this LinkedIn Page channel'
+        );
+      }
+
+      const [firstPost] = postDetails;
+      const body: Record<string, unknown> = {
+        content: firstPost.message,
+        platforms: [{ platform: 'linkedin', accountId: id }],
+        publishNow: true,
+      };
+
+      if (firstPost.media?.length) {
+        body.mediaItems = firstPost.media.map((media) => ({
+          type: media.type,
+          url: media.path,
+        }));
+      }
+
+      const response = await fetch('https://zernio.com/api/v1/posts', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'x-request-id': firstPost.id,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          `Zernio LinkedIn: ${data?.error || response.statusText}`
+        );
+      }
+
+      const target = data?.post?.platforms?.find(
+        (platform: any) => platform.platform === 'linkedin'
+      );
+
+      return [
+        {
+          id: firstPost.id,
+          postId: data?.post?._id || data?._id || '',
+          releaseURL: target?.platformPostUrl || '',
+          status: 'success',
+        },
+      ];
+    }
+
     return super.post(id, accessToken, postDetails, integration, 'company');
   }
 
