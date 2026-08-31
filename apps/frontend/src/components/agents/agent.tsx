@@ -193,6 +193,11 @@ const AgentList: FC<{
                 </button>
 
                 <div className="ms-[14px] border-s border-newBorder ps-[8px]">
+                  {group.integrations.length === 0 ? (
+                    <div className="px-[6px] py-[9px] text-[11px] text-textItemBlur">
+                      {t('no_channels_connected', 'No channels connected')}
+                    </div>
+                  ) : null}
                   {group.integrations.map((integration) => {
                     const selected = selectedIds.has(integration.id);
                     const selectable = isIntegrationSelectable(integration);

@@ -66,8 +66,21 @@ describe('agent composer brand grouping', () => {
       'The Basketball Factory',
       'The House of Sports',
       'Practice My Shooting',
+      'CoachAISuite',
+      'HOOPSTRACKER',
+      'MicroBasketballApps',
     ]);
-    expect(groups.every((group) => group.integrations.length === 1)).toBe(true);
+    expect(
+      groups.slice(0, 6).every((group) => group.integrations.length === 1)
+    ).toBe(true);
+    expect(groups.slice(6).map((group) => group.name)).toEqual([
+      'CoachAISuite',
+      'HOOPSTRACKER',
+      'MicroBasketballApps',
+    ]);
+    expect(
+      groups.slice(6).every((group) => group.integrations.length === 0)
+    ).toBe(true);
   });
 
   it('keeps unmatched customer groups available without inventing channel ids', () => {
@@ -78,12 +91,12 @@ describe('agent composer brand grouping', () => {
       }),
     ]);
 
-    expect(groups).toHaveLength(1);
-    expect(groups[0].name).toBe('A New Brand');
-    expect(groups[0].integrations[0].id).toBe('custom-channel-id');
+    expect(groups).toHaveLength(10);
+    expect(groups.at(-1)?.name).toBe('A New Brand');
+    expect(groups.at(-1)?.integrations[0].id).toBe('custom-channel-id');
   });
 
-  it('omits brands and platforms that are not present in the integration data', () => {
+  it('shows empty brand groups without inventing platforms', () => {
     const groups = groupIntegrationsByBrand([
       integration({
         id: 'bookmark-facebook-only',
@@ -92,10 +105,23 @@ describe('agent composer brand grouping', () => {
       }),
     ]);
 
-    expect(groups.map((group) => group.name)).toEqual(['Bookmark AI Hub']);
+    expect(groups.map((group) => group.name)).toEqual([
+      'Bookmark AI Hub',
+      'Rise as One',
+      'ShotIQ Basketball',
+      'The Basketball Factory',
+      'The House of Sports',
+      'Practice My Shooting',
+      'CoachAISuite',
+      'HOOPSTRACKER',
+      'MicroBasketballApps',
+    ]);
     expect(groups[0].integrations.map((item) => item.identifier)).toEqual([
       'facebook',
     ]);
+    expect(
+      groups.slice(1).every((group) => group.integrations.length === 0)
+    ).toBe(true);
   });
 
   it('uses the real customer brand before a conflicting account label', () => {
@@ -107,9 +133,22 @@ describe('agent composer brand grouping', () => {
       }),
     ]);
 
-    expect(groups).toHaveLength(1);
-    expect(groups[0].name).toBe('Rise as One');
-    expect(groups[0].integrations[0].id).toBe('customer-owned-channel');
+    expect(groups).toHaveLength(9);
+    expect(groups[1].name).toBe('Rise as One');
+    expect(groups[1].integrations[0].id).toBe('customer-owned-channel');
+  });
+
+  it.each([
+    ['Coach AI Suite', 'CoachAISuite'],
+    ['hoopstracker', 'HOOPSTRACKER'],
+    ['Micro Basketball Apps', 'MicroBasketballApps'],
+    ['HouseofSports', 'The House of Sports'],
+  ])('maps %s to its canonical brand group', (accountName, brandName) => {
+    const group = groupIntegrationsByBrand([
+      integration({ id: accountName, name: accountName }),
+    ]).find(({ name }) => name === brandName);
+
+    expect(group?.integrations.map(({ id }) => id)).toEqual([accountName]);
   });
 });
 

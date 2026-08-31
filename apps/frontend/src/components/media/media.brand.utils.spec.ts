@@ -8,7 +8,7 @@ import {
 } from './media.brand.utils';
 
 describe('media brand folders', () => {
-  it('derives canonical folders only from real integration data', () => {
+  it('derives canonical folders and keeps requested empty brand folders ready', () => {
     const folders = deriveMediaBrandFolders([
       { customer: { name: 'BookmarkAIHub' }, name: 'Facebook account' },
       { customer: { name: 'Rise as One AAU' }, name: 'Instagram account' },
@@ -19,17 +19,31 @@ describe('media brand folders', () => {
       'Bookmark AI Hub',
       'Rise as One',
       'ShotIQ Basketball',
+      'The Basketball Factory',
+      'The House of Sports',
+      'Practice My Shooting',
+      'CoachAISuite',
+      'HOOPSTRACKER',
+      'MicroBasketballApps',
     ]);
     expect(folders.every((folder) => folder.count === 0)).toBe(true);
   });
 
-  it('does not create empty folders for brands absent from integrations', () => {
+  it('creates known empty brand folders without creating social platforms', () => {
     const folders = deriveMediaBrandFolders([
       { customer: { name: 'The Basketball Factory' }, name: 'Facebook' },
     ]);
 
     expect(folders.map((folder) => folder.name)).toEqual([
+      'Bookmark AI Hub',
+      'Rise as One',
+      'ShotIQ Basketball',
       'The Basketball Factory',
+      'The House of Sports',
+      'Practice My Shooting',
+      'CoachAISuite',
+      'HOOPSTRACKER',
+      'MicroBasketballApps',
     ]);
   });
 
@@ -39,7 +53,13 @@ describe('media brand folders', () => {
         { name: 'Facebook Page', identifier: 'facebook' },
         { name: 'YouTube', identifier: 'youtube' },
       ])
-    ).toEqual([]);
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'CoachAISuite', count: 0 }),
+        expect.objectContaining({ name: 'HOOPSTRACKER', count: 0 }),
+        expect.objectContaining({ name: 'MicroBasketballApps', count: 0 }),
+      ])
+    );
   });
 
   it('keeps genuinely existing dynamic and stored brands with their counts', () => {
@@ -51,10 +71,12 @@ describe('media brand folders', () => {
       ]
     );
 
-    expect(folders).toEqual([
-      { id: 'legacybrand', name: 'Legacy Brand', count: 2 },
-      { id: 'newtrainingbrand', name: 'New Training Brand', count: 4 },
-    ]);
+    expect(folders).toEqual(
+      expect.arrayContaining([
+        { id: 'legacybrand', name: 'Legacy Brand', count: 2 },
+        { id: 'newtrainingbrand', name: 'New Training Brand', count: 4 },
+      ])
+    );
   });
 
   it('uses the shared connection-health classifier when identities overlap', () => {

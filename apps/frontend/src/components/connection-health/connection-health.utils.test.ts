@@ -59,6 +59,10 @@ describe('brand connection classification', () => {
     [{ name: 'bballfactoryinc' }, 'the-basketball-factory'],
     [{ customer: { name: 'The House of Sports' } }, 'the-house-of-sports'],
     [{ name: 'practicemyshoot' }, 'practice-my-shooting'],
+    [{ name: 'Coach AI Suite' }, 'coach-ai-suite'],
+    [{ display: '@HOOPSTRACKER' }, 'hoops-tracker'],
+    [{ name: 'MicroBasketballApps' }, 'micro-basketball-apps'],
+    [{ customer: { name: 'HouseofSports' } }, 'the-house-of-sports'],
   ])('classifies normalized live account identities', (connection, brand) => {
     expect(classifyConnectionBrand(connection)).toBe(brand);
   });

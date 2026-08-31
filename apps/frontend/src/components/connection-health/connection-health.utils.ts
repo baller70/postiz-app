@@ -56,12 +56,32 @@ export const BRAND_DEFINITIONS = [
   {
     key: 'the-house-of-sports',
     label: 'The House of Sports',
-    aliases: ['The House of Sports', 'House of Sports', 'THOS NJ'],
+    aliases: [
+      'The House of Sports',
+      'House of Sports',
+      'HouseofSports',
+      'THOS NJ',
+    ],
   },
   {
     key: 'practice-my-shooting',
     label: 'Practice My Shooting',
     aliases: ['Practice My Shooting', 'PracticeMyShooting', 'PracticeMyShoot'],
+  },
+  {
+    key: 'coach-ai-suite',
+    label: 'CoachAISuite',
+    aliases: ['CoachAISuite', 'Coach AI Suite'],
+  },
+  {
+    key: 'hoops-tracker',
+    label: 'HOOPSTRACKER',
+    aliases: ['HOOPSTRACKER', 'Hoops Tracker', 'Hoop Tracker'],
+  },
+  {
+    key: 'micro-basketball-apps',
+    label: 'MicroBasketballApps',
+    aliases: ['MicroBasketballApps', 'Micro Basketball Apps'],
   },
 ] as const;
 

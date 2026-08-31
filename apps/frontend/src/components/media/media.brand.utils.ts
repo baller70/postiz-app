@@ -99,6 +99,7 @@ export function deriveMediaBrandFolders(
     });
   };
 
+  BRAND_DEFINITIONS.forEach((brand) => addBrand(brand.label));
   integrations.forEach((integration) =>
     addBrand(brandNameFromIntegration(integration))
   );

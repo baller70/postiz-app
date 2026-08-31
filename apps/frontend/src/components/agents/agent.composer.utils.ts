@@ -41,12 +41,32 @@ export const BRAND_DEFINITIONS: BrandDefinition[] = [
   {
     id: 'the-house-of-sports',
     name: 'The House of Sports',
-    aliases: ['the house of sports', 'thehouseofsports', 'house of sports'],
+    aliases: [
+      'the house of sports',
+      'thehouseofsports',
+      'house of sports',
+      'houseofsports',
+    ],
   },
   {
     id: 'practice-my-shooting',
     name: 'Practice My Shooting',
     aliases: ['practice my shooting', 'practicemyshooting', 'practicemyshoot'],
+  },
+  {
+    id: 'coach-ai-suite',
+    name: 'CoachAISuite',
+    aliases: ['coachaisuite', 'coach ai suite'],
+  },
+  {
+    id: 'hoops-tracker',
+    name: 'HOOPSTRACKER',
+    aliases: ['hoopstracker', 'hoops tracker', 'hoop tracker'],
+  },
+  {
+    id: 'micro-basketball-apps',
+    name: 'MicroBasketballApps',
+    aliases: ['microbasketballapps', 'micro basketball apps'],
   },
 ];
 
@@ -116,9 +136,7 @@ export function groupIntegrationsByBrand(
   });
 
   return [
-    ...Array.from(knownGroups.values()).filter(
-      (group) => group.integrations.length > 0
-    ),
+    ...Array.from(knownGroups.values()),
     ...Array.from(dynamicGroups.values()).sort((first, second) =>
       first.name.localeCompare(second.name)
     ),
