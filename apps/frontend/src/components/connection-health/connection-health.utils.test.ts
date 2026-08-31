@@ -116,24 +116,17 @@ describe('brand platform matrix', () => {
     },
   ];
 
-  it('includes the standard checklist, canonicalizes providers, and appends returned providers', () => {
+  it('shows only returned providers while preserving canonical and additional providers', () => {
     const rows = buildBrandPlatformRows(connections, 'bookmark-ai-hub');
 
-    expect(rows.slice(0, 9).map(({ key }) => key)).toEqual([
+    expect(rows.map(({ key }) => key)).toEqual([
       'linkedin',
-      'instagram',
       'facebook',
-      'x',
-      'threads',
-      'bluesky',
-      'gmb',
-      'tiktok',
-      'youtube',
+      'mastodon-custom',
     ]);
     expect(rows.find(({ key }) => key === 'linkedin')?.status).toBe(
       'reconnect'
     );
-    expect(rows.find(({ key }) => key === 'instagram')?.status).toBe('missing');
     expect(rows.at(-1)).toMatchObject({
       key: 'mastodon-custom',
       label: 'Mastodon',
@@ -141,14 +134,40 @@ describe('brand platform matrix', () => {
     });
   });
 
-  it('calculates connected, attention, disabled, and missing platform totals', () => {
+  it('does not invent LinkedIn or other absent platforms for The House of Sports', () => {
+    const rows = buildBrandPlatformRows(
+      [
+        {
+          name: 'The House of Sports',
+          identifier: 'facebook',
+          status: 'connected' as const,
+        },
+        {
+          name: 'The House of Sports',
+          identifier: 'instagram-standalone',
+          status: 'connected' as const,
+        },
+      ],
+      'the-house-of-sports'
+    );
+
+    expect(rows.map(({ key }) => key)).toEqual(['instagram', 'facebook']);
+    expect(rows.some(({ key }) => key === 'linkedin')).toBe(false);
+  });
+
+  it('returns no platform rows when a brand has no integrations', () => {
+    expect(buildBrandPlatformRows(connections, 'practice-my-shooting')).toEqual(
+      []
+    );
+  });
+
+  it('calculates totals from existing brand platforms only', () => {
     const rows = buildBrandPlatformRows(connections, 'bookmark-ai-hub');
 
     expect(getBrandStatusTotals(rows)).toEqual({
       connected: 1,
       attention: 1,
       disabled: 1,
-      missing: 7,
       present: 3,
     });
   });
