@@ -143,6 +143,7 @@ describe('agent composer brand grouping', () => {
     ['hoopstracker', 'HOOPSTRACKER'],
     ['Micro Basketball Apps', 'MicroBasketballApps'],
     ['HouseofSports', 'The House of Sports'],
+    ['bballfactoryinc', 'The Basketball Factory'],
   ])('maps %s to its canonical brand group', (accountName, brandName) => {
     const group = groupIntegrationsByBrand([
       integration({ id: accountName, name: accountName }),

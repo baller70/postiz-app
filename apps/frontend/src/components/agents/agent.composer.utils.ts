@@ -36,7 +36,12 @@ export const BRAND_DEFINITIONS: BrandDefinition[] = [
   {
     id: 'the-basketball-factory',
     name: 'The Basketball Factory',
-    aliases: ['the basketball factory', 'thebasketballfactory'],
+    aliases: [
+      'the basketball factory',
+      'thebasketballfactory',
+      'bballfactoryinc',
+      'bballfactory',
+    ],
   },
   {
     id: 'the-house-of-sports',

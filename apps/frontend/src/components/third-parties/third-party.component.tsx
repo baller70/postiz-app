@@ -73,8 +73,8 @@ const workflowConnectors = [
     description:
       'Use your private API key for custom apps, scheduled imports, and internal tools.',
     detail: 'Developer',
-    href: '/settings?tab=api',
-    action: 'Open API settings',
+    href: 'https://docs.postiz.com/public-api/introduction',
+    action: 'Open API documentation',
     icon: FiCode,
     color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
   },
