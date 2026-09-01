@@ -1,208 +1,350 @@
 'use client';
 
-import clsx from 'clsx';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { ThirdPartyListComponent } from '@gitroom/frontend/components/third-parties/third-party.list.component';
-import React, { FC, useCallback, useState } from 'react';
+import React, { FC, useCallback, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
-import useCookie from 'react-use-cookie';
-import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
+import Link from 'next/link';
+import {
+  FiCheckCircle,
+  FiCode,
+  FiCpu,
+  FiExternalLink,
+  FiGitBranch,
+  FiMoreHorizontal,
+  FiRadio,
+  FiShare2,
+  FiZap,
+} from '@meronex/icons/fi';
+
+type SavedThirdParty = {
+  id: string;
+  identifier: string;
+  title: string;
+  name: string;
+  description: string;
+};
+
+const workflowConnectors = [
+  {
+    id: 'n8n',
+    title: 'n8n',
+    badge: 'Recommended',
+    description:
+      'Build durable content pipelines with the official Postiz community node.',
+    detail: 'Automation',
+    href: 'https://n8n.io/integrations/postiz/',
+    action: 'Open n8n connector',
+    icon: FiGitBranch,
+    color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  },
+  {
+    id: 'make',
+    title: 'Make',
+    badge: 'Popular',
+    description:
+      'Connect Postiz to Airtable, Google Drive, Sheets, approvals, and other marketing tools.',
+    detail: 'No-code workflows',
+    href: 'https://www.make.com/en/integrations/postiz',
+    action: 'Open Make connector',
+    icon: FiShare2,
+    color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  },
+  {
+    id: 'mcp',
+    title: 'Postiz MCP',
+    badge: 'Official',
+    description:
+      'Let Codex and other MCP clients list channels, generate media, and schedule posts.',
+    detail: 'AI agents',
+    href: 'https://docs.postiz.com/mcp/introduction',
+    action: 'Open MCP setup',
+    icon: FiCpu,
+    color: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+  },
+  {
+    id: 'api',
+    title: 'Public API',
+    badge: 'Official',
+    description:
+      'Use your private API key for custom apps, scheduled imports, and internal tools.',
+    detail: 'Developer',
+    href: '/settings?tab=api',
+    action: 'Open API settings',
+    icon: FiCode,
+    color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  },
+  {
+    id: 'webhooks',
+    title: 'Webhooks',
+    badge: 'Built in',
+    description:
+      'Send publishing events to reporting, alerts, approvals, or downstream workflows.',
+    detail: 'Notifications',
+    href: '/settings?tab=webhooks',
+    action: 'Manage webhooks',
+    icon: FiRadio,
+    color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
+  {
+    id: 'sdk',
+    title: 'Node.js SDK',
+    badge: 'Official',
+    description:
+      'Schedule posts, upload media, and read connected channels from Node.js applications.',
+    detail: 'Developer',
+    href: 'https://www.npmjs.com/package/@postiz/node',
+    action: 'Open SDK',
+    icon: FiCode,
+    color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
+  {
+    id: 'zapier',
+    title: 'Zapier',
+    badge: 'API bridge',
+    description:
+      'Use Webhooks by Zapier with the Postiz API when a Zapier-first workflow is required.',
+    detail: 'No native Postiz app',
+    href: 'https://zapier.com/apps/webhook/integrations',
+    action: 'Open Zapier webhooks',
+    icon: FiZap,
+    color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300',
+  },
+] as const;
 
 export const ThirdPartyMenuComponent: FC<{
   reload: () => void;
   tParty: { id: string };
-}> = (props) => {
-  const { tParty, reload } = props;
+}> = ({ tParty, reload }) => {
   const fetch = useFetch();
   const [show, setShow] = useState(false);
-  const t = useT();
   const toaster = useToaster();
 
-  const changeShow = () => {
-    setShow((prev) => !prev);
-  };
-
-  const deleteChannel = (id: string) => async () => {
+  const deleteChannel = async () => {
     setShow(false);
-    if (
-      !(await deleteDialog('Are you sure you want to delete this integration?'))
-    ) {
+    if (!(await deleteDialog('Delete this integration?'))) {
       return;
     }
 
-    const res = await fetch(`/third-party/${id}`, {
+    const response = await fetch(`/third-party/${tParty.id}`, {
       method: 'DELETE',
     });
-
-    if (res.ok) {
+    if (response.ok) {
       toaster.show('Integration deleted successfully', 'success');
       reload();
-    } else {
-      const error = await res.json();
-      console.error('Error deleting integration:', error);
     }
   };
 
   return (
-    <div className="cursor-pointer relative select-none" onClick={changeShow}>
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setShow((current) => !current)}
+        className="flex h-[34px] w-[34px] items-center justify-center rounded-[7px] text-newTableText hover:bg-boxHover hover:text-newTextColor"
+        aria-label="Integration actions"
+        aria-expanded={show}
       >
-        <path
-          d="M13.125 12C13.125 12.2225 13.059 12.44 12.9354 12.625C12.8118 12.81 12.6361 12.9542 12.4305 13.0394C12.225 13.1245 11.9988 13.1468 11.7805 13.1034C11.5623 13.06 11.3618 12.9528 11.2045 12.7955C11.0472 12.6382 10.94 12.4377 10.8966 12.2195C10.8532 12.0012 10.8755 11.775 10.9606 11.5695C11.0458 11.3639 11.19 11.1882 11.375 11.0646C11.56 10.941 11.7775 10.875 12 10.875C12.2984 10.875 12.5845 10.9935 12.7955 11.2045C13.0065 11.4155 13.125 11.7016 13.125 12ZM12 6.75C12.2225 6.75 12.44 6.68402 12.625 6.5604C12.81 6.43679 12.9542 6.26109 13.0394 6.05552C13.1245 5.84995 13.1468 5.62375 13.1034 5.40552C13.06 5.1873 12.9528 4.98684 12.7955 4.82951C12.6382 4.67217 12.4377 4.56503 12.2195 4.52162C12.0012 4.47821 11.775 4.50049 11.5695 4.58564C11.3639 4.67078 11.1882 4.81498 11.0646 4.99998C10.941 5.18499 10.875 5.4025 10.875 5.625C10.875 5.92337 10.9935 6.20952 11.2045 6.4205C11.4155 6.63147 11.7016 6.75 12 6.75ZM12 17.25C11.7775 17.25 11.56 17.316 11.375 17.4396C11.19 17.5632 11.0458 17.7389 10.9606 17.9445C10.8755 18.15 10.8532 18.3762 10.8966 18.5945C10.94 18.8127 11.0472 19.0132 11.2045 19.1705C11.3618 19.3278 11.5623 19.435 11.7805 19.4784C11.9988 19.5218 12.225 19.4995 12.4305 19.4144C12.6361 19.3292 12.8118 19.185 12.9354 19C13.059 18.815 13.125 18.5975 13.125 18.375C13.125 18.0766 13.0065 17.7905 12.7955 17.5795C12.5845 17.3685 12.2984 17.25 12 17.25Z"
-          fill="#506490"
-        />
-      </svg>
-      {show && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className={`absolute top-[100%] start-0 p-[8px] px-[20px] bg-fifth flex flex-col gap-[16px] z-[100] rounded-[8px] border border-tableBorder text-nowrap`}
+        <FiMoreHorizontal size={18} aria-hidden="true" />
+      </button>
+      {show ? (
+        <button
+          type="button"
+          onClick={deleteChannel}
+          className="absolute end-0 top-[38px] z-20 w-[150px] rounded-[8px] border border-newTableBorder bg-newBgColorInner px-[12px] py-[10px] text-start text-[12px] font-[600] text-rose-600 shadow-lg dark:text-rose-400"
         >
-          <div
-            className="flex gap-[12px] items-center"
-            onClick={deleteChannel(tParty.id)}
-          >
-            <div>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path
-                  d="M13.5 3H11V2.5C11 2.10218 10.842 1.72064 10.5607 1.43934C10.2794 1.15804 9.89782 1 9.5 1H6.5C6.10218 1 5.72064 1.15804 5.43934 1.43934C5.15804 1.72064 5 2.10218 5 2.5V3H2.5C2.36739 3 2.24021 3.05268 2.14645 3.14645C2.05268 3.24021 2 3.36739 2 3.5C2 3.63261 2.05268 3.75979 2.14645 3.85355C2.24021 3.94732 2.36739 4 2.5 4H3V13C3 13.2652 3.10536 13.5196 3.29289 13.7071C3.48043 13.8946 3.73478 14 4 14H12C12.2652 14 12.5196 13.8946 12.7071 13.7071C12.8946 13.5196 13 13.2652 13 13V4H13.5C13.6326 4 13.7598 3.94732 13.8536 3.85355C13.9473 3.75979 14 3.63261 14 3.5C14 3.36739 13.9473 3.24021 13.8536 3.14645C13.7598 3.05268 13.6326 3 13.5 3ZM6 2.5C6 2.36739 6.05268 2.24021 6.14645 2.14645C6.24021 2.05268 6.36739 2 6.5 2H9.5C9.63261 2 9.75979 2.05268 9.85355 2.14645C9.94732 2.24021 10 2.36739 10 2.5V3H6V2.5ZM12 13H4V4H12V13ZM7 6.5V10.5C7 10.6326 6.94732 10.7598 6.85355 10.8536C6.75979 10.9473 6.63261 11 6.5 11C6.36739 11 6.24021 10.9473 6.14645 10.8536C6.05268 10.7598 6 10.6326 6 10.5V6.5C6 6.36739 6.05268 6.24021 6.14645 6.14645C6.24021 6.05268 6.36739 6 6.5 6C6.63261 6 6.75979 6.05268 6.85355 6.14645C6.94732 6.24021 7 6.36739 7 6.5ZM10 6.5V10.5C10 10.6326 9.94732 10.7598 9.85355 10.8536C9.75979 10.9473 9.63261 11 9.5 11C9.36739 11 9.24021 10.9473 9.14645 10.8536C9.05268 10.7598 9 10.6326 9 10.5V6.5C9 6.36739 9.05268 6.24021 9.14645 6.14645C9.24021 6.05268 9.36739 6 9.5 6C9.63261 6 9.75979 6.05268 9.85355 6.14645C9.94732 6.24021 10 6.36739 10 6.5Z"
-                  fill="#F97066"
-                />
-              </svg>
-            </div>
-            <div className="text-[12px]">
-              {t('delete_integration', 'Delete Integration')}
-            </div>
-          </div>
-        </div>
-      )}
+          Delete integration
+        </button>
+      ) : null}
     </div>
   );
 };
 
+const WorkflowCatalog = () => (
+  <section aria-labelledby="workflow-connectors-heading">
+    <div className="mb-[12px] flex flex-wrap items-end justify-between gap-[8px]">
+      <div>
+        <h2 id="workflow-connectors-heading" className="text-[20px] font-[700]">
+          Workflow connectors
+        </h2>
+        <p className="mt-[3px] text-[13px] text-newTableText">
+          Official Postiz tools and widely used automation bridges.
+        </p>
+      </div>
+      <span className="text-[12px] font-[600] text-newTableText">
+        {workflowConnectors.length} available
+      </span>
+    </div>
+
+    <div className="grid grid-cols-1 gap-[12px] md:grid-cols-2 2xl:grid-cols-3">
+      {workflowConnectors.map((connector) => {
+        const Icon = connector.icon;
+        const external = connector.href.startsWith('http');
+        const content = (
+          <>
+            <div className="flex items-start gap-[12px]">
+              <span
+                className={`flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[8px] ${connector.color}`}
+              >
+                <Icon size={20} aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-[7px]">
+                  <h3 className="text-[15px] font-[700]">{connector.title}</h3>
+                  <span className="rounded-full bg-boxHover px-[7px] py-[2px] text-[10px] font-[700] text-newTableText">
+                    {connector.badge}
+                  </span>
+                </div>
+                <div className="mt-[3px] text-[11px] font-[600] uppercase text-newTableText">
+                  {connector.detail}
+                </div>
+              </div>
+            </div>
+            <p className="mt-[13px] flex-1 text-[13px] leading-[1.55] text-newTableText">
+              {connector.description}
+            </p>
+            <span className="mt-[14px] inline-flex items-center gap-[7px] text-[12px] font-[700] text-btnPrimary">
+              {connector.action}
+              {external ? (
+                <FiExternalLink size={14} aria-hidden="true" />
+              ) : null}
+            </span>
+          </>
+        );
+
+        const className =
+          'flex min-h-[196px] flex-col rounded-[8px] border border-newTableBorder bg-newBgColorInner p-[16px] transition-colors hover:border-newTextColor/30 hover:bg-boxHover';
+
+        return external ? (
+          <a
+            key={connector.id}
+            href={connector.href}
+            target="_blank"
+            rel="noreferrer"
+            className={className}
+          >
+            {content}
+          </a>
+        ) : (
+          <Link key={connector.id} href={connector.href} className={className}>
+            {content}
+          </Link>
+        );
+      })}
+    </div>
+  </section>
+);
+
 export const ThirdPartyComponent = () => {
-  const t = useT();
   const fetch = useFetch();
+  const t = useT();
 
   const integrations = useCallback(async () => {
     return (await fetch('/third-party')).json();
-  }, []);
+  }, [fetch]);
 
-  const { data, isLoading, mutate } = useSWR('third-party', integrations, {
+  const {
+    data = [],
+    isLoading,
+    mutate,
+  } = useSWR<SavedThirdParty[]>('third-party', integrations, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     revalidateIfStale: false,
     revalidateOnMount: true,
     refreshWhenHidden: false,
     refreshWhenOffline: false,
+    fallbackData: [],
   });
-  const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const connectedIdentifiers = useMemo(
+    () => data.map(({ identifier }) => identifier),
+    [data]
+  );
 
   return (
-    <>
-      <div
-        className={clsx(
-          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
-          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
-        )}
-      >
-        <div className="flex gap-[12px] flex-col">
-          <div className="flex items-center">
-            <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
-              {t('integrations')}
-            </h2>
-            <div
-              onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="7"
-                height="13"
-                viewBox="0 0 7 13"
-                fill="none"
-              >
-                <path
-                  d="M6 11.5L1 6.5L6 1.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
+    <main className="min-w-0 flex-1 overflow-y-auto bg-newBgColorInner p-[20px] mobile:p-[14px]">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-[28px]">
+        <div className="flex flex-wrap items-end justify-between gap-[12px] border-b border-newTableBorder pb-[16px]">
+          <div>
+            <h2 className="text-[24px] font-[700]">Integration Hub</h2>
+            <p className="mt-[4px] max-w-[720px] text-[13px] text-newTableText">
+              Native media services and proven workflow connectors for Postiz.
+            </p>
           </div>
-          <div className="flex flex-col gap-[10px]">
-            <div className="flex-1 flex flex-col gap-[14px]">
-              <div
-                className={clsx(
-                  'gap-[16px] flex flex-col relative justify-center rounded-e-[8px]'
-                )}
-              >
-                {!isLoading && !data?.length ? (
-                  <div>No Integrations Yet</div>
-                ) : (
-                  data?.map((p: any) => (
-                    <div
-                      key={p.id}
-                      className={clsx('flex gap-[8px] items-center group/profile hover:bg-boxHover')}
-                    >
-                      <div className="h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity">
-                        <SVGLine />
-                      </div>
-                      <div
-                        className={clsx(
-                          'relative rounded-full flex justify-center items-center'
-                        )}
-                        data-tooltip-id="tooltip"
-                        data-tooltip-content={p.title}
-                      >
-                        <ImageWithFallback
-                          fallbackSrc={`/icons/third-party/${p.identifier}.png`}
-                          src={`/icons/third-party/${p.identifier}.png`}
-                          className="rounded-full"
-                          alt={p.title}
-                          width={32}
-                          height={32}
-                        />
-                      </div>
-                      <div
-                        // @ts-ignore
-                        role="Handle"
-                        className={clsx(
-                          'flex-1 whitespace-nowrap text-ellipsis overflow-hidden group-[.sidebar]:hidden'
-                        )}
-                        data-tooltip-id="tooltip"
-                        data-tooltip-content={p.title}
-                      >
-                        {p.name}
-                      </div>
-                      <ThirdPartyMenuComponent reload={mutate} tParty={p} />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          <div className="inline-flex items-center gap-[7px] text-[12px] font-[600] text-newTableText">
+            <FiCheckCircle
+              size={16}
+              className="text-emerald-600 dark:text-emerald-400"
+              aria-hidden="true"
+            />
+            {data.length} connected
           </div>
         </div>
+
+        {data.length ? (
+          <section aria-labelledby="connected-integrations-heading">
+            <div className="mb-[10px] flex items-center justify-between">
+              <h2
+                id="connected-integrations-heading"
+                className="text-[20px] font-[700]"
+              >
+                Connected
+              </h2>
+              <span className="text-[12px] text-newTableText">
+                {data.length} active
+              </span>
+            </div>
+            <div className="divide-y divide-newTableBorder border-y border-newTableBorder">
+              {data.map((integration) => (
+                <div
+                  key={integration.id}
+                  className="flex min-h-[68px] items-center gap-[12px] px-[6px] py-[10px]"
+                >
+                  <ImageWithFallback
+                    fallbackSrc={`/icons/third-party/${integration.identifier}.png`}
+                    src={`/icons/third-party/${integration.identifier}.png`}
+                    alt=""
+                    width={38}
+                    height={38}
+                    className="h-[38px] w-[38px] rounded-[8px] object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-[700]">
+                      {integration.name || integration.title}
+                    </div>
+                    <div className="mt-[2px] truncate text-[12px] text-newTableText">
+                      {integration.title}
+                    </div>
+                  </div>
+                  <span className="hidden items-center gap-[6px] text-[11px] font-[700] text-emerald-600 sm:inline-flex dark:text-emerald-400">
+                    <FiCheckCircle size={14} aria-hidden="true" />
+                    Connected
+                  </span>
+                  <ThirdPartyMenuComponent
+                    tParty={integration}
+                    reload={mutate}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <ThirdPartyListComponent
+          reload={mutate}
+          connectedIdentifiers={connectedIdentifiers}
+        />
+        <WorkflowCatalog />
+
+        {!isLoading && !data.length ? (
+          <p className="sr-only">
+            {t('no_integrations_yet', 'No integrations connected yet')}
+          </p>
+        ) : null}
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
-        <ThirdPartyListComponent reload={mutate} />
-      </div>
-    </>
+    </main>
   );
 };

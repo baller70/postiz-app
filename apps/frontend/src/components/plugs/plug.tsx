@@ -26,6 +26,7 @@ import { Slider } from '@gitroom/react/form/slider';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { ModalWrapperComponent } from '@gitroom/frontend/components/new-launch/modal.wrapper.component';
+import { FiCheckCircle, FiZap } from '@meronex/icons/fi';
 export function convertBackRegex(s: string) {
   const matches = s.match(/\/(.*)\/([a-z]*)/);
   const pattern = matches?.[1] || '';
@@ -192,31 +193,47 @@ export const PlugItem: FC<{
       });
       setActivated(status === 'on');
     },
-    [activated]
+    [data?.id, fetch]
   );
   return (
-    <div
-      onClick={() => addPlug(data)}
+    <article
       key={plug.title}
-      className="w-full h-[300px] rounded-[8px] bg-newTableHeader hover:bg-newTableBorder"
+      className="flex min-h-[220px] w-full flex-col rounded-[8px] border border-newTableBorder bg-newBgColorInner p-[16px] transition-colors hover:border-newTextColor/30"
     >
-      <div key={plug.title} className="p-[16px] h-full flex flex-col flex-1">
-        <div className="flex">
-          <div className="text-[20px] mb-[8px] flex-1">{plug.title}</div>
-          {!!data && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Slider
-                value={activated ? 'on' : 'off'}
-                onChange={changeActivated}
-                fill={true}
-              />
-            </div>
-          )}
+      <div className="flex items-start gap-[12px]">
+        <span className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] bg-btnPrimary/10 text-btnPrimary">
+          <FiZap size={19} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[16px] font-[700]">{plug.title}</h3>
+          <div className="mt-[3px] text-[11px] font-[600] uppercase text-newTableText">
+            Engagement automation
+          </div>
         </div>
-        <div className="flex-1">{plug.description}</div>
-        <Button>{!data ? 'Set Plug' : 'Edit Plug'}</Button>
+        {data ? (
+          <div onClick={(event) => event.stopPropagation()}>
+            <Slider
+              value={activated ? 'on' : 'off'}
+              onChange={changeActivated}
+              fill={true}
+            />
+          </div>
+        ) : null}
       </div>
-    </div>
+      <p className="mt-[14px] flex-1 text-[13px] leading-[1.6] text-newTableText">
+        {plug.description}
+      </p>
+      <Button className="mt-[16px] w-full" onClick={() => addPlug(data)}>
+        <span className="inline-flex items-center gap-[7px]">
+          {data ? (
+            <FiCheckCircle size={15} aria-hidden="true" />
+          ) : (
+            <FiZap size={15} aria-hidden="true" />
+          )}
+          {!data ? 'Set Plug' : 'Edit Plug'}
+        </span>
+      </Button>
+    </article>
   );
 };
 export const Plug = () => {
@@ -263,7 +280,7 @@ export const Plug = () => {
     return null;
   }
   return (
-    <div className="grid grid-cols-3 gap-[30px]">
+    <div className="grid grid-cols-1 gap-[12px] md:grid-cols-2 xl:grid-cols-3">
       {plug.plugs.map((p) => (
         <PlugItem
           key={p.title + '-' + plug.providerId}

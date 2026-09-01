@@ -1,39 +1,63 @@
 'use client';
 
 import useSWR from 'swr';
-import { useCallback, useMemo, useState } from 'react';
-import { capitalize, orderBy } from 'lodash';
-import clsx from 'clsx';
-import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
-import SafeImage from '@gitroom/react/helpers/safe.image';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { orderBy } from 'lodash';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import { Select } from '@gitroom/react/form/select';
 import { Button } from '@gitroom/react/form/button';
 import { useRouter } from 'next/navigation';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { PlugsContext } from '@gitroom/frontend/components/plugs/plugs.context';
 import { Plug } from '@gitroom/frontend/components/plugs/plug';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import useCookie from 'react-use-cookie';
-import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import {
+  AgentIntegration,
+  groupIntegrationsByBrand,
+} from '@gitroom/frontend/components/agents/agent.composer.utils';
+import { FiAlertTriangle, FiZap } from '@meronex/icons/fi';
+
+type PlugDefinition = {
+  name: string;
+  identifier: string;
+  plugs: {
+    title: string;
+    description: string;
+    runEveryMilliseconds: number;
+    methodName: string;
+    fields: {
+      name: string;
+      type: string;
+      validation: string;
+      placeholder: string;
+      description: string;
+    }[];
+  }[];
+};
+
 export const Plugs = () => {
   const fetch = useFetch();
   const router = useRouter();
-  const [current, setCurrent] = useState(0);
-  const [refresh, setRefresh] = useState(false);
   const toaster = useToaster();
-  const load = useCallback(async () => {
-    return (await (await fetch('/integrations/list')).json()).integrations;
-  }, []);
-  const load2 = useCallback(async (path: string) => {
-    return await (await fetch(path)).json();
-  }, []);
+  const t = useT();
+  const [selectedBrand, setSelectedBrand] = useState('all');
+  const [currentId, setCurrentId] = useState('');
+
+  const loadIntegrations = useCallback(async () => {
+    return (await (await fetch('/integrations/list')).json())
+      .integrations as AgentIntegration[];
+  }, [fetch]);
+  const loadPlugs = useCallback(async () => {
+    return (await (await fetch('/integrations/plug/list')).json()) as {
+      plugs: PlugDefinition[];
+    };
+  }, [fetch]);
+
   const { data: plugList, isLoading: plugLoading } = useSWR(
     '/integrations/plug/list',
-    load2,
+    loadPlugs,
     {
-      fallbackData: [],
+      fallbackData: { plugs: [] },
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
       revalidateIfStale: false,
@@ -42,189 +66,203 @@ export const Plugs = () => {
       refreshWhenOffline: false,
     }
   );
-  const { data, isLoading } = useSWR('analytics-list', load, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-    revalidateOnMount: true,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-    fallbackData: [],
-  });
+  const { data = [], isLoading } = useSWR(
+    'plug-integration-list',
+    loadIntegrations,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+      revalidateOnMount: true,
+      refreshWhenHidden: false,
+      refreshWhenOffline: false,
+      fallbackData: [],
+    }
+  );
 
-  const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
-
-  const t = useT();
-
-  const sortedIntegrations = useMemo(() => {
-    return orderBy(
-      data.filter((integration: any) =>
-        plugList?.plugs?.some(
-          (f: any) => f.identifier === integration.identifier
-        )
+  const eligibleIntegrations = useMemo(
+    () =>
+      orderBy(
+        data.filter((integration) =>
+          plugList.plugs.some(
+            (definition) => definition.identifier === integration.identifier
+          )
+        ),
+        ['type', 'disabled', 'identifier', 'name'],
+        ['desc', 'asc', 'asc', 'asc']
       ),
-      // data.filter((integration) => !integration.disabled),
-      ['type', 'disabled', 'identifier'],
-      ['desc', 'asc', 'asc']
-    );
-  }, [data, plugList]);
-  const currentIntegration = useMemo(() => {
-    return sortedIntegrations[current];
-  }, [current, sortedIntegrations]);
+    [data, plugList.plugs]
+  );
+  const brandGroups = useMemo(
+    () =>
+      groupIntegrationsByBrand(eligibleIntegrations).filter(
+        ({ integrations }) => integrations.length > 0
+      ),
+    [eligibleIntegrations]
+  );
+  const visibleIntegrations = useMemo(
+    () =>
+      selectedBrand === 'all'
+        ? eligibleIntegrations
+        : brandGroups.find(({ id }) => id === selectedBrand)?.integrations ||
+          [],
+    [brandGroups, eligibleIntegrations, selectedBrand]
+  );
+
+  useEffect(() => {
+    if (!visibleIntegrations.length) {
+      setCurrentId('');
+      return;
+    }
+    if (!visibleIntegrations.some(({ id }) => id === currentId)) {
+      setCurrentId(visibleIntegrations[0].id);
+    }
+  }, [currentId, visibleIntegrations]);
+
+  const currentIntegration = useMemo(
+    () =>
+      visibleIntegrations.find(({ id }) => id === currentId) ||
+      visibleIntegrations[0],
+    [currentId, visibleIntegrations]
+  );
   const currentIntegrationPlug = useMemo(() => {
-    const plug = plugList?.plugs?.find(
-      (f: any) => f?.identifier === currentIntegration?.identifier
+    const definition = plugList.plugs.find(
+      ({ identifier }) => identifier === currentIntegration?.identifier
     );
-    if (!plug) {
+    if (!definition || !currentIntegration) {
       return null;
     }
     return {
       providerId: currentIntegration.id,
-      ...plug,
+      ...definition,
     };
-  }, [currentIntegration, plugList]);
+  }, [currentIntegration, plugList.plugs]);
 
   if (isLoading || plugLoading) {
     return (
-      <div className="bg-newBgColorInner p-[20px] flex flex-1 flex-col gap-[15px] transition-all items-center justify-center">
+      <div className="flex flex-1 items-center justify-center bg-newBgColorInner p-[20px]">
         <LoadingComponent />
       </div>
     );
   }
 
-  if (!sortedIntegrations.length && !isLoading) {
+  if (!eligibleIntegrations.length) {
     return (
-      <div className="bg-newBgColorInner p-[20px] flex flex-1 flex-col gap-[15px] transition-all items-center justify-center">
-        <div>
-          <img src="/peoplemarketplace.svg" />
+      <main className="flex min-w-0 flex-1 items-center justify-center bg-newBgColorInner p-[20px]">
+        <div className="flex max-w-[560px] flex-col items-center text-center">
+          <span className="flex h-[48px] w-[48px] items-center justify-center rounded-[8px] bg-btnPrimary/10 text-btnPrimary">
+            <FiZap size={23} aria-hidden="true" />
+          </span>
+          <h2 className="mt-[16px] text-[22px] font-[700]">
+            No automation-ready channels
+          </h2>
+          <p className="mt-[7px] text-[13px] leading-[1.6] text-newTableText">
+            Postiz channel plugs are available for X, Bluesky, LinkedIn Pages,
+            and Threads.
+          </p>
+          <Button
+            className="mt-[18px]"
+            onClick={() => router.push('/launches')}
+          >
+            Open Launches
+          </Button>
         </div>
-        <div className="text-[48px]">
-          {t(
-            'there_are_not_plugs_matching_your_channels',
-            'There are not plugs matching your channels'
-          )}
-          <br />
-          {t(
-            'you_have_to_add_x_or_linkedin_or_threads',
-            'You have to add: X or LinkedIn or Threads'
-          )}
-        </div>
-        <Button onClick={() => router.push('/launches')}>
-          {t(
-            'go_to_the_calendar_to_add_channels',
-            'Go to the calendar to add channels'
-          )}
-        </Button>
-      </div>
+      </main>
     );
   }
+
   return (
-    <>
-      <div
-        className={clsx(
-          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
-          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
-        )}
-      >
-        <div className="flex gap-[12px] flex-col">
-          <div className="flex items-center">
-            <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
-              {t('channels')}
-            </h2>
-            <div
-              onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="7"
-                height="13"
-                viewBox="0 0 7 13"
-                fill="none"
-              >
-                <path
-                  d="M6 11.5L1 6.5L6 1.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
+    <main className="min-w-0 flex-1 overflow-y-auto bg-newBgColorInner p-[20px] mobile:p-[14px]">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-[20px]">
+        <div className="flex flex-wrap items-end justify-between gap-[12px] border-b border-newTableBorder pb-[16px]">
+          <div>
+            <h2 className="text-[24px] font-[700]">Channel Automations</h2>
+            <p className="mt-[4px] text-[13px] text-newTableText">
+              Engagement-triggered actions built into Postiz.
+            </p>
           </div>
-          {sortedIntegrations.map((integration, index) => (
-            <div
-              key={integration.id}
-              onClick={() => {
-                if (integration.refreshNeeded) {
+          <span className="inline-flex items-center gap-[7px] text-[12px] font-[600] text-newTableText">
+            <FiZap size={15} className="text-btnPrimary" aria-hidden="true" />
+            {eligibleIntegrations.length} eligible channels
+          </span>
+        </div>
+
+        <section
+          aria-label="Automation channel"
+          className="grid grid-cols-1 gap-[12px] border-b border-newTableBorder pb-[16px] md:grid-cols-2"
+        >
+          <label className="flex min-w-0 flex-col gap-[6px] text-[12px] font-[600] text-newTableText">
+            Brand
+            <select
+              value={selectedBrand}
+              onChange={(event) => {
+                setSelectedBrand(event.target.value);
+                setCurrentId('');
+              }}
+              className="h-[44px] w-full rounded-[8px] border border-newTableBorder bg-newBgColorInner px-[12px] text-[13px] text-newTextColor outline-none focus:border-btnPrimary"
+            >
+              <option value="all">
+                All brands ({eligibleIntegrations.length})
+              </option>
+              {brandGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name} ({group.integrations.length})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex min-w-0 flex-col gap-[6px] text-[12px] font-[600] text-newTableText">
+            Channel
+            <select
+              value={currentIntegration?.id || ''}
+              onChange={(event) => {
+                const integration = visibleIntegrations.find(
+                  ({ id }) => id === event.target.value
+                );
+                if (integration?.refreshNeeded) {
                   toaster.show(
-                    'Please refresh the integration from the calendar',
+                    'Reconnect this channel from Connections before setting a plug.',
                     'warning'
                   );
-                  return;
                 }
-                setRefresh(true);
-                setTimeout(() => {
-                  setRefresh(false);
-                }, 10);
-                setCurrent(index);
+                setCurrentId(event.target.value);
               }}
-              className={clsx(
-                'flex gap-[8px] items-center justify-center group/profile hover:bg-boxHover rounded-e-[8px]',
-                currentIntegration.id !== integration.id &&
-                  'opacity-20 hover:opacity-100 cursor-pointer'
-              )}
+              className="h-[44px] w-full rounded-[8px] border border-newTableBorder bg-newBgColorInner px-[12px] text-[13px] text-newTextColor outline-none focus:border-btnPrimary"
             >
-              <div
-                className={clsx(
-                  'relative rounded-full flex justify-center items-center gap-[8px]',
-                  integration.disabled && 'opacity-50'
-                )}
-              >
-                {(integration.inBetweenSteps || integration.refreshNeeded) && (
-                  <div className="absolute start-0 top-0 w-[39px] h-[46px] cursor-pointer">
-                    <div className="bg-red-500 w-[15px] h-[15px] rounded-full start-0 -top-[5px] absolute z-[200] text-[10px] flex justify-center items-center">
-                      !
-                    </div>
-                    <div className="bg-primary/60 w-[39px] h-[46px] start-0 top-0 absolute rounded-full z-[199]" />
-                  </div>
-                )}
-                <div className="h-full w-[4px] -ms-[12px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity">
-                  <SVGLine />
-                </div>
-                <ImageWithFallback
-                  fallbackSrc={`/icons/platforms/${integration.identifier}.png`}
-                  src={integration.picture}
-                  className="rounded-[8px]"
-                  alt={integration.identifier}
-                  width={36}
-                  height={36}
-                />
-                <SafeImage
-                  src={`/icons/platforms/${integration.identifier}.png`}
-                  className="rounded-[8px] absolute z-10 bottom-[5px] -end-[5px] border border-fifth"
-                  alt={integration.identifier}
-                  width={18.41}
-                  height={18.41}
-                />
-              </div>
-              <div
-                className={clsx(
-                  'flex-1 whitespace-nowrap text-ellipsis overflow-hidden group-[.sidebar]:hidden',
-                  integration.disabled && 'opacity-50'
-                )}
-              >
-                {integration.name}
-              </div>
-            </div>
-          ))}
-        </div>
+              {visibleIntegrations.map((integration) => (
+                <option key={integration.id} value={integration.id}>
+                  {integration.name} · {integration.identifier}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+
+        {currentIntegration?.refreshNeeded ||
+        currentIntegration?.inBetweenSteps ? (
+          <div
+            role="status"
+            className="flex items-center gap-[9px] rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-[14px] py-[11px] text-[12px] font-[600] text-amber-700 dark:text-amber-300"
+          >
+            <FiAlertTriangle size={16} aria-hidden="true" />
+            Reconnect {currentIntegration.name} before activating automations.
+          </div>
+        ) : null}
+
+        {currentIntegrationPlug ? (
+          <PlugsContext.Provider value={currentIntegrationPlug}>
+            <Plug />
+          </PlugsContext.Provider>
+        ) : (
+          <div className="flex min-h-[180px] items-center justify-center text-[13px] text-newTableText">
+            {t(
+              'no_plugs_for_channel',
+              'No plugs are available for this channel.'
+            )}
+          </div>
+        )}
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
-        <PlugsContext.Provider value={currentIntegrationPlug}>
-          <Plug />
-        </PlugsContext.Provider>
-      </div>
-    </>
+    </main>
   );
 };

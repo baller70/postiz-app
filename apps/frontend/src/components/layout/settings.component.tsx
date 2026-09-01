@@ -81,12 +81,15 @@ export const SettingsPopup: FC<{
     close();
   }, []);
 
-  const [tab, setTab] = useState('global_settings');
+  const [tab, setTab] = useState(() => url.get('tab') || 'global_settings');
 
   const t = useT();
   const list = useMemo(() => {
     const arr = [];
-    arr.push({ tab: 'global_settings', label: t('global_settings', 'Global Settings') });
+    arr.push({
+      tab: 'global_settings',
+      label: t('global_settings', 'Global Settings'),
+    });
     // Populate tabs based on user permissions
     if (user?.tier?.team_members && isGeneral) {
       arr.push({ tab: 'teams', label: t('teams', 'Teams') });
@@ -106,10 +109,23 @@ export const SettingsPopup: FC<{
     if (user?.tier?.public_api && isGeneral && showLogout) {
       arr.push({ tab: 'api', label: t('developers', 'Developers') });
     }
-    arr.push({ tab: 'approved_apps', label: t('approved_apps', 'Approved Apps') });
+    arr.push({
+      tab: 'approved_apps',
+      label: t('approved_apps', 'Approved Apps'),
+    });
 
     return arr;
   }, [user, isGeneral, showLogout, t]);
+
+  useEffect(() => {
+    const requestedTab = url.get('tab');
+    if (
+      requestedTab &&
+      list.some(({ tab: availableTab }) => availableTab === requestedTab)
+    ) {
+      setTab(requestedTab);
+    }
+  }, [list, url]);
 
   useEffect(() => {
     loadProfile();

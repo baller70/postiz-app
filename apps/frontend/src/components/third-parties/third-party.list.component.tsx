@@ -10,142 +10,181 @@ import { FieldValues, FormProvider, useForm } from 'react-hook-form';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { Input } from '@gitroom/react/form/input';
 import { useToaster } from '@gitroom/react/toaster/toaster';
-import { ModalWrapperComponent } from '@gitroom/frontend/components/new-launch/modal.wrapper.component';
+import { FiCheckCircle, FiPlus } from '@meronex/icons/fi';
+
+type ThirdPartyDefinition = {
+  identifier: string;
+  title: string;
+  description: string;
+};
 
 export const ApiModal: FC<{
   identifier: string;
   title: string;
   update: () => void;
-}> = (props) => {
-  const { title, identifier, update } = props;
+}> = ({ title, identifier, update }) => {
   const fetch = useFetch();
   const router = useRouter();
   const modal = useModals();
   const toaster = useToaster();
   const [loading, setLoading] = useState(false);
-  const closePopup = useCallback(() => {
-    modal.closeAll();
-  }, []);
-
-  const methods = useForm({
-    mode: 'onChange',
-  });
-
-  const close = useCallback(() => {
-    if (closePopup) {
-      return closePopup();
-    }
-    modal.closeAll();
-  }, []);
+  const methods = useForm({ mode: 'onChange' });
 
   const submit = useCallback(
     async (data: FieldValues) => {
       setLoading(true);
-      const add = await fetch(`/third-party/${identifier}`, {
+      const response = await fetch(`/third-party/${identifier}`, {
         method: 'POST',
-        body: JSON.stringify({
-          api: data.api,
-        }),
+        body: JSON.stringify({ api: data.api }),
       });
 
-      if (add.ok) {
+      if (response.ok) {
         toaster.show('Integration added successfully', 'success');
-        if (closePopup) {
-          closePopup();
-        } else {
-          modal.closeAll();
-        }
+        modal.closeAll();
         router.refresh();
-        if (update) update();
+        update();
         return;
       }
 
-      const { message } = await add.json();
-
-      methods.setError('api', {
-        message,
-      });
-
+      const { message } = await response.json();
+      methods.setError('api', { message });
       setLoading(false);
     },
-    [props]
+    [fetch, identifier, methods, modal, router, toaster, update]
   );
-
-  const t = useT();
 
   return (
     <div className="relative">
       <FormProvider {...methods}>
         <form
-          className="gap-[8px] flex flex-col"
+          className="flex flex-col gap-[12px]"
           onSubmit={methods.handleSubmit(submit)}
         >
-          <div className="pt-[10px]">
-            <Input label="API Key" name="api" />
+          <div className="pt-[8px]">
+            <Input label={`${title} API key`} name="api" type="password" />
           </div>
-          <div>
-            <Button loading={loading} type="submit">
-              {t('add_integration', 'Add Integration')}
-            </Button>
-          </div>
+          <Button loading={loading} type="submit">
+            Connect {title}
+          </Button>
         </form>
       </FormProvider>
     </div>
   );
 };
 
-export const ThirdPartyListComponent: FC<{ reload: () => void }> = (props) => {
+export const ThirdPartyListComponent: FC<{
+  reload: () => void;
+  connectedIdentifiers?: string[];
+}> = ({ reload, connectedIdentifiers = [] }) => {
   const fetch = useFetch();
   const modals = useModals();
-  const { reload } = props;
+  const t = useT();
 
   const integrationsList = useCallback(async () => {
     return (await fetch('/third-party/list')).json();
-  }, []);
+  }, [fetch]);
 
-  const { data } = useSWR('third-party-list', integrationsList, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-    revalidateOnMount: true,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-  });
+  const { data = [], isLoading } = useSWR<ThirdPartyDefinition[]>(
+    'third-party-list',
+    integrationsList,
+    {
+      fallbackData: [],
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
 
   const addApiKey = useCallback(
     (title: string, identifier: string) => () => {
       modals.openModal({
-        title: `Add API key for ${title}`,
-        withCloseButton: false,
+        title: `Connect ${title}`,
+        withCloseButton: true,
         children: (
           <ApiModal identifier={identifier} title={title} update={reload} />
         ),
       });
     },
-    []
+    [modals, reload]
   );
 
   return (
-    <div className="grid grid-cols-4 gap-[10px] justify-items-center justify-center">
-      {data?.map((p: any) => (
-        <div
-          onClick={addApiKey(p.title, p.identifier)}
-          key={p.identifier}
-          className="w-full h-full p-[20px] min-h-[100px] text-[14px] bg-newTableHeader hover:bg-newTableBorder rounded-[8px] transition-all text-textColor relative flex flex-col gap-[15px] cursor-pointer"
-        >
-          <div>
-            <img
-              className="w-[32px] h-[32px]"
-              src={`/icons/third-party/${p.identifier}.png`}
-            />
-          </div>
-          <div className="whitespace-pre-wrap text-left text-lg">{p.title}</div>
-          <div className="whitespace-pre-wrap text-left">{p.description}</div>
-          <div className="w-full flex">
-            <Button className="w-full">Add</Button>
-          </div>
+    <section aria-labelledby="native-integrations-heading">
+      <div className="mb-[12px] flex flex-wrap items-end justify-between gap-[8px]">
+        <div>
+          <h2
+            id="native-integrations-heading"
+            className="text-[20px] font-[700]"
+          >
+            Native media integrations
+          </h2>
+          <p className="mt-[3px] text-[13px] text-newTableText">
+            Services implemented directly in this Postiz installation.
+          </p>
         </div>
-      ))}
-    </div>
+        <span className="text-[12px] font-[600] text-newTableText">
+          {isLoading ? 'Loading' : `${data.length} available`}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-[12px] md:grid-cols-2 xl:grid-cols-3">
+        {data.map((integration) => {
+          const connected = connectedIdentifiers.includes(
+            integration.identifier
+          );
+          return (
+            <article
+              key={integration.identifier}
+              className="flex min-h-[190px] flex-col rounded-[8px] border border-newTableBorder bg-newBgColorInner p-[16px]"
+            >
+              <div className="flex items-start gap-[12px]">
+                <img
+                  className="h-[42px] w-[42px] rounded-[8px] object-cover"
+                  src={`/icons/third-party/${integration.identifier}.png`}
+                  alt=""
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-[15px] font-[700]">
+                    {integration.title}
+                  </h3>
+                  <div className="mt-[3px] text-[11px] font-[600] uppercase text-newTableText">
+                    API key
+                  </div>
+                </div>
+                {connected ? (
+                  <FiCheckCircle
+                    size={18}
+                    className="text-emerald-600 dark:text-emerald-400"
+                    aria-label="Connected"
+                  />
+                ) : null}
+              </div>
+              <p className="mt-[13px] flex-1 text-[13px] leading-[1.55] text-newTableText">
+                {integration.description}
+              </p>
+              <Button
+                onClick={
+                  connected
+                    ? undefined
+                    : addApiKey(integration.title, integration.identifier)
+                }
+                disabled={connected}
+                className="mt-[14px] w-full"
+              >
+                <span className="inline-flex items-center gap-[7px]">
+                  {connected ? (
+                    <FiCheckCircle size={15} aria-hidden="true" />
+                  ) : (
+                    <FiPlus size={15} aria-hidden="true" />
+                  )}
+                  {connected
+                    ? t('connected', 'Connected')
+                    : t('connect', 'Connect')}
+                </span>
+              </Button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 };
